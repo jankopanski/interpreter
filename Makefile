@@ -1,14 +1,9 @@
-#PARSER = (
-#LexMacchiato.hs
-#ParMacchiato.hs
-#SkelMacchiato.hs
-#PrintMacchiato.hs
-#AbsMacchiato.hs
-#ErrM.hs
-#)
+PARSER_SRC = LexMacchiato.hs ParMacchiato.hs SkelMacchiato.hs PrintMacchiato.hs AbsMacchiato.hs ErrM.hs
 
-interpreter: Main.hs #$(PARSER)
+SRC = Main.hs Interpreter.hs
+
+interpreter: $(SRC) $(PARSER_SRC)
 	ghc Main.hs -o interpreter
 
 clean:
-	rm *.o *.hi interpreter
+	rm -f *.o *.hi interpreter
