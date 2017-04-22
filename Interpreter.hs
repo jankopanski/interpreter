@@ -25,13 +25,22 @@ data Value =
   | VTup [Value]
   | VArr (Array.Array Int Value)
   | VMap (Map.Map Value Value)
+  deriving (Show)
 -- data ArrValue a = VArr (Array.Array Int a)
 -- type ArrValue a = Array.Array Int a
 -- data MapValue k v = VMap (Map.Map Value v)
 
-data Func = Func FName Type [Arg] Stmt Scope
+data Func = Func FName Type [Arg] Stmt Scope --deriving (Show)
+instance Show Func where
+  show (Func name t args _ scope) = "Func " ++ show name ++ " " ++ show t ++ " "
+    ++ show args ++ " " ++ show scope
 
-data Scope = Scope { innerEnv :: Env, outerEnv :: Env, innerFEnv :: FEnv, outerFEnv :: FEnv, allStore :: Store }
+data Scope = Scope { innerEnv :: Env
+                   , outerEnv :: Env
+                   , innerFEnv :: FEnv
+                   , outerFEnv :: FEnv
+                   , allStore :: Store
+                   } deriving (Show)
 
 type Env = Map.Map Name Loc
 type FEnv = Map.Map FName Func
@@ -69,12 +78,25 @@ evalProgram (Program topdefs) = do
     Just main@(Func "main" Int [] _ _) -> runMain main
     _ -> error "Invalid 'main' declaration"
 
+-- modifyStore :: (Store -> Store) -> Scope -> Scope
+-- modifyStore f (Scope inenv outenv infenv outfenv store)
+modifyStore :: (Store -> Store) -> Interpreter
+modifyStore f = modify (\(Scope inenv outenv infenv outfenv store) -> (Scope inenv outenv infenv outfenv (f store)))
+-- modifyStore f (Scope inenv outenv infenv outfenv store) = Scope
+
 execBlock :: Block -> Interpreter
 execBlock (Block []) = return ()
+execBlock (Block (VRet:_)) = return () -- TODO dodać typ void
+execBlock (Block (Ret expr:_)) = get >>= \scope -> void $ modifyStore (Map.insert undefLoc (evalExpr expr scope))
+-- execBlock (Block ((Ret expr):_)) = get >>= \scope -> modifyStore (\store -> Map.insert 0 (evalExpr expr scope) store)
+-- Dodaje wartość expr na lokacje 0
 execBlock (Block (stmt:stmts)) = execStmt stmt >> execBlock (Block stmts)
 
+-- Main to wyjątek, który nie potrzebuje podmiany scopa
 runMain :: Func -> Interpreter
-runMain (Func _ _ _ (BStmt block) _) = execBlock block
+-- runMain (Func _ _ _ (BStmt block) _) = execBlock block
+runMain (Func _ _ _ (BStmt block) _) = get >>= lift . print >> execBlock block
+-- TODO Main discards return
   -- dodać argsy
   --Scope inenv outenv infenv outfenv store <- get
   -- put (Scope inenv_fun outenv_fun infenv_fun outfenv_fun store_fun)
