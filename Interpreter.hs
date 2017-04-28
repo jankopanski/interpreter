@@ -26,9 +26,6 @@ data Value =
   | VArr (Array.Array Int Value)
   | VMap (Map.Map Value Value)
   deriving (Show)
--- data ArrValue a = VArr (Array.Array Int a)
--- type ArrValue a = Array.Array Int a
--- data MapValue k v = VMap (Map.Map Value v)
 
 data Func = Func FName Type [Arg] Stmt Scope --deriving (Show)
 instance Show Func where
@@ -78,11 +75,8 @@ evalProgram (Program topdefs) = do
     Just main@(Func "main" Int [] _ _) -> runMain main
     _ -> error "Invalid 'main' declaration"
 
--- modifyStore :: (Store -> Store) -> Scope -> Scope
--- modifyStore f (Scope inenv outenv infenv outfenv store)
 modifyStore :: (Store -> Store) -> Interpreter
 modifyStore f = modify (\(Scope inenv outenv infenv outfenv store) -> (Scope inenv outenv infenv outfenv (f store)))
--- modifyStore f (Scope inenv outenv infenv outfenv store) = Scope
 
 execBlock :: Block -> Interpreter
 execBlock (Block []) = return ()
@@ -98,25 +92,11 @@ runMain :: Func -> Interpreter
 runMain (Func _ _ _ (BStmt block) _) = get >>= lift . print >> execBlock block
 -- TODO Main discards return
   -- dodać argsy
-  --Scope inenv outenv infenv outfenv store <- get
-  -- put (Scope inenv_fun outenv_fun infenv_fun outfenv_fun store_fun)
-  -- forM_ stmts execStmt
   -- sprawdzić ret
 
 execStmt :: Stmt -> Interpreter
 
 execStmt Empty = return ()
-
--- TODO wywalić
--- execStmt (BStmt (Block stmts)) = do
---   Scope inenv outenv infenv outfenv store <- get
---   let newoutenv = Map.union inenv outenv
---       newoutfenv = Map.union infenv outfenv
---   put (Scope emptyEnv newoutenv emptyFEnv newoutfenv store)
---   forM_ stmts execStmt
---   Scope _ _ _ _ store' <- get
---   put (Scope inenv outenv infenv outfenv store')
-  -- x <- forM stmts execStmt
 
 execStmt (BStmt block) = do
   Scope inenv outenv infenv outfenv store <- get
@@ -154,24 +134,46 @@ declVar t (Init (Ident name) expr) = do
       store' = Map.insert loc val store
   put (Scope inenv' outenv infenv outfenv store')
 
+getFunc :: FName -> Scope -> Func
+getFunc name (Scope _ _ infenv outfenv _) = case Map.lookup name infenv of
+  Just func -> func
+  Nothing -> case Map.lookup name outfenv of
+    Just func -> func
+    Nothing -> error "Function not defined"
+
+-- getVar :: Name -> Scope -> Value
+-- getVar name (Scope inenv outenv _ _ _) = case Map.lookup name inenv of
+--   Just var -> var
+--   Nothing -> case Map.lookup name outenv of
+--     Just var -> var
+--     Nothing -> error "Variable not defined"
+
 evalExpr :: Expr -> Scope -> Value
+
+-- evalExpr (EApp (Ident name) exprs) = do
+--   scope@(Scope inenv outenv infenv outfenv store) <- get
+--   -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
+--   --sprawdzanie liczby argumentów przy typach
+--   let func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore)) = getFunc name infenv
+--   let outenv' = Map.union inenv outenv
+--       outfenv' = Map.insert name func (Map.union infenv outfenv)
+--       paramZip = zip (map (\(Arg _ (Ident argname)) -> argname) args) (map evalExpr exprs)
+--       inenv' = foldl (\env (paramName, paramVal) -> Map.insert paramName paramVal) emptyEnv paramZip
+--       infenv' = emptyFEnv
+--   execStmt stmt
+--   let ret =
+--   return ()
+--Jeżeli call przekazuje return przez scope
 evalExpr _ _ = VInt 0 -- TODO
 
--- TODO wywalić
--- addToStore
--- -- sprawdzić czy ident istnieje, dodać do env
--- addVar :: Type -> Item -> Scope -> Scope
--- addVar t item (Scope inenv outenv infenv outfenv store) =
---   let (inenv', store') = case item of
---     NoInit ident -> (updateEnv ident 0 inenv, store)
---     Init ident expr -> (updateEnv ident inenv, )
---
--- execStmt (Decl t items) =
-  -- Scope inenv outenv infenv outfenv store <- get
-  -- let ifoldl () inenv items
+{-
+get scope
+dodać argsy do inenv
+wywołać blok
+zebrać return z 0
+przywrócić parametry
+dodać funckję do fenv
+-}
 
--- evatStmt (Decl t items) = foldM (\b a -> return b) () items
--- execStmt (Decl t items) = forM_ items (\stmt -> )
-
--- checkDecl :: Name -> Env -> Bool
--- checkDecl = Map.member
+inbuildPrint :: [Value] -> IO ()
+inbuildPrint = mapM_ (\x -> print (show x ++ "  "))
