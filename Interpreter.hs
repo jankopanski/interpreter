@@ -1,61 +1,22 @@
 module Interpreter where
 
 
-import LexMacchiato
-import ParMacchiato
-import SkelMacchiato
-import PrintMacchiato
-import AbsMacchiato
-
-import Control.Monad
+-- import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as Map
-import qualified Data.Array as Array
+-- import qualified Data.Array as Array
 
+-- import LexMacchiato
+-- import ParMacchiato
+-- import SkelMacchiato
+-- import PrintMacchiato
+import AbsMacchiato
 
-type Name = String
-type FName = String
-type Loc = Int
+import DataStructures
+-- import Statements
+import InbuildFunctions
+import Utils
 
-data Value =
-    VInt Int
-  | VBool Bool
-  | VString String
-  -- | VVoid
-  | VTup [Value]
-  | VArr (Array.Array Int Value)
-  | VMap (Map.Map Value Value)
-  deriving (Show)
-
-data Func = Func FName Type [Arg] Stmt Scope --deriving (Show)
-instance Show Func where
-  show (Func name t args _ scope) = "Func " ++ show name ++ " " ++ show t ++ " "
-    ++ show args ++ " " ++ show scope
-
-data Scope = Scope { innerEnv :: Env
-                   , outerEnv :: Env
-                   , innerFEnv :: FEnv
-                   , outerFEnv :: FEnv
-                   , allStore :: Store
-                   } deriving (Show)
-
-type Env = Map.Map Name Loc
-type FEnv = Map.Map FName Func
-type Store = Map.Map Loc Value
-
-type Interpreter = StateT Scope IO ()
-
-emptyEnv :: Env
-emptyEnv = Map.empty
-
-emptyFEnv :: FEnv
-emptyFEnv = Map.empty
-
-emptyStore :: Store
-emptyStore = Map.empty
-
-emptyScope :: Scope
-emptyScope = Scope emptyEnv emptyEnv emptyFEnv emptyFEnv emptyStore
 
 interpret :: Program-> IO ()
 interpret p = evalStateT (evalProgram p) emptyScope
@@ -75,17 +36,6 @@ evalProgram (Program topdefs) = do
     Just main@(Func "main" Int [] _ _) -> runMain main
     _ -> error "Invalid 'main' declaration"
 
-modifyStore :: (Store -> Store) -> Interpreter
-modifyStore f = modify (\(Scope inenv outenv infenv outfenv store) -> (Scope inenv outenv infenv outfenv (f store)))
-
-execBlock :: Block -> Interpreter
-execBlock (Block []) = return ()
-execBlock (Block (VRet:_)) = return () -- TODO dodać typ void
-execBlock (Block (Ret expr:_)) = get >>= \scope -> void $ modifyStore (Map.insert undefLoc (evalExpr expr scope))
--- execBlock (Block ((Ret expr):_)) = get >>= \scope -> modifyStore (\store -> Map.insert 0 (evalExpr expr scope) store)
--- Dodaje wartość expr na lokacje 0
-execBlock (Block (stmt:stmts)) = execStmt stmt >> execBlock (Block stmts)
-
 -- Main to wyjątek, który nie potrzebuje podmiany scopa
 runMain :: Func -> Interpreter
 -- runMain (Func _ _ _ (BStmt block) _) = execBlock block
@@ -93,6 +43,18 @@ runMain (Func _ _ _ (BStmt block) _) = get >>= lift . print >> execBlock block
 -- TODO Main discards return
   -- dodać argsy
   -- sprawdzić ret
+
+-- TODO quickfix modifyStore
+execBlock :: Block -> Interpreter
+execBlock (Block []) = return ()
+execBlock (Block (VRet:_)) = return () -- TODO dodać typ void
+execBlock (Block (Ret expr:_)) = get >>= \scope -> void $ modifyStore (\(s, n) -> (Map.insert undefLoc (evalExpr expr scope) s, n))
+-- execBlock (Block (Ret expr:_)) = get >>= \scope -> void $ modifyStore (\store -> Map.insert undefLoc (evalExpr expr scope) store)
+-- execBlock (Block ((Ret expr):_)) = get >>= \scope -> modifyStore (\store -> Map.insert 0 (evalExpr expr scope) store)
+-- Dodaje wartość expr na lokacje 0
+execBlock (Block (stmt:stmts)) = execStmt stmt >> execBlock (Block stmts)
+
+-- Statements --
 
 execStmt :: Stmt -> Interpreter
 
@@ -110,12 +72,6 @@ execStmt (BStmt block) = do
 execStmt (Decl _ []) = return ()
 execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
 
-undefLoc :: Loc
-undefLoc = 0
-
-newloc :: Store -> Loc
-newloc store = Map.size store + 1
-
 -- TODO kontrola typów
 declVar :: Type -> Item -> Interpreter
 declVar t (NoInit (Ident name)) = do
@@ -129,27 +85,31 @@ declVar t (Init (Ident name) expr) = do
   when (Map.member name inenv) $ error ("Redefinition of '" ++ name ++ "'")
   -- TODO kontrola typów
   let val = evalExpr expr scope
-      loc = newloc store
+      store'@(_, loc) = insertStore val store
+      -- loc = newloc store
       inenv' = Map.insert name loc inenv
-      store' = Map.insert loc val store
+      -- store' = Map.insert loc val store
   put (Scope inenv' outenv infenv outfenv store')
 
-getFunc :: FName -> Scope -> Func
-getFunc name (Scope _ _ infenv outfenv _) = case Map.lookup name infenv of
-  Just func -> func
-  Nothing -> case Map.lookup name outfenv of
-    Just func -> func
-    Nothing -> error "Function not defined"
-
--- getVar :: Name -> Scope -> Value
--- getVar name (Scope inenv outenv _ _ _) = case Map.lookup name inenv of
---   Just var -> var
---   Nothing -> case Map.lookup name outenv of
---     Just var -> var
---     Nothing -> error "Variable not defined"
+-- Expressions --
 
 evalExpr :: Expr -> Scope -> Value
 
+evalExpr (EApp (Ident name) exprs) scope@(Scope inenv outenv infenv outfenv store) = VInt 0
+  where
+    func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore)) = getFunc name scope
+    outenv' = Map.union funinenv funoutenv
+    outfenv' = Map.insert name func (Map.union infenv outfenv)
+    paramNames = map (\(Arg _ (Ident argname)) -> argname) args
+    -- paramLocs = replicate (length paramNames) (repeat newloc funstore)
+    paramValues = map (`evalExpr` scope) exprs
+    (store', locs_rev) = foldl (\(store', locs) value -> let store''@(_, loc) = insertStore value store' in (store'', loc:locs)) (store, []) paramValues
+    inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv') emptyEnv (zip paramNames (reverse locs_rev))
+    infenv' = emptyFEnv
+    scope' = Scope inenv' outenv' infenv' outfenv' store'
+    scope'' = execStateT (execStmt stmt) scope'
+    -- inenv' = foldl (\env (paramName, paramVal) -> Map.insert paramName paramVal env) emptyEnv paramZip
+-- TODO
 -- evalExpr (EApp (Ident name) exprs) = do
 --   scope@(Scope inenv outenv infenv outfenv store) <- get
 --   -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
@@ -164,7 +124,6 @@ evalExpr :: Expr -> Scope -> Value
 --   let ret =
 --   return ()
 --Jeżeli call przekazuje return przez scope
-evalExpr _ _ = VInt 0 -- TODO
 
 {-
 get scope
@@ -175,5 +134,4 @@ przywrócić parametry
 dodać funckję do fenv
 -}
 
-inbuildPrint :: [Value] -> IO ()
-inbuildPrint = mapM_ (\x -> print (show x ++ "  "))
+evalExpr _ _ = VInt 0 -- TODO
