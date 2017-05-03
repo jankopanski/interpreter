@@ -1,6 +1,7 @@
-void func(int a) {
+int func(int a) {
   int y = 4;
-  //return;
+  int z = a;
+  return 3;
 }
 
 int main () {

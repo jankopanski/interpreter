@@ -90,7 +90,7 @@ execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
       let inenv' = Map.insert name undefLoc inenv
       put (Scope inenv' outenv infenv outfenv store ret)
     declVar t (Init (Ident name) expr) = do
-      scope@(Scope inenv outenv infenv outfenv store ret) <- get
+      Scope inenv outenv infenv outfenv store ret <- get
       when (Map.member name inenv) $ error ("Redefinition of '" ++ name ++ "'")
       -- TODO kontrola typów
       -- let val = evalExpr expr scope
@@ -101,7 +101,16 @@ execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
           -- store' = Map.insert loc val store
       lift $ print val
       put (Scope inenv' outenv infenv outfenv store' ret)
---
+
+execStmt (Ret expr) = do
+  val <- evalExpr expr
+  lift $ print val
+  modify (\(Scope inenv outenv infenv outfenv store _) ->
+    Scope inenv outenv infenv outfenv store (Just val))
+
+execStmt VRet = modify (\(Scope inenv outenv infenv outfenv store _) ->
+  Scope inenv outenv infenv outfenv store (Just VVoid))
+
 -- execStmt (SExp expr) = get >>= \scope -> void $ evalExpr expr scope
 execStmt (SExp expr) = do
   -- scope <- get
@@ -115,6 +124,15 @@ execStmt (SExp expr) = do
 evalExpr :: Expr -> InterpreterT Value
 -- evalExpr :: Expr -> Interpreter -> Value
 
+evalExpr (EVar (Ident name)) = do
+  Scope inenv outenv _ _ store _ <- get
+  if Map.member name inenv
+    then return $ getValue (inenv Map.! name) store
+    else if Map.member name outenv
+      then return $ getValue (outenv Map.! name) store
+      else error $ "Undefined variable: " ++ name
+
+evalExpr (ELitInt n) = return $ VInt n
 
 -- evalExpr (EApp (Ident name) exprs) scope@(Scope inenv outenv infenv outfenv store) = return $ VInt 0
 --   where
@@ -135,29 +153,30 @@ evalExpr (EApp (Ident name) exprs) = do
   scope@(Scope inenv outenv infenv outfenv store _) <- get
   -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
   --sprawdzanie liczby argumentów przy typach
-  let func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) =
-        getFunc name scope
-  let outenv' = Map.union funinenv funoutenv
-      outfenv' = Map.insert name func (Map.union funinfenv funoutfenv)
-      paramNames = map (\(Arg _ (Ident argname)) -> argname) args
-      -- paramValues = mapM evalExpr exprs
   paramValues <- mapM evalExpr exprs
-      -- paramValues = map (`evalExpr` scope) exprs
-  let (store', locs_rev) = foldl (\(store', locs) value ->
-        let store''@(_, loc) = insertStore value store' in (store'', loc:locs))
-        (funstore, []) paramValues
-      inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv')
-        emptyEnv (zip paramNames (reverse locs_rev))
-      infenv' = emptyFEnv
-      scope' = Scope inenv' outenv' infenv' outfenv' store' Nothing
-  put scope'
-      -- scope'' = lift $ execStateT (execStmt stmt) scope'
-  execStmt stmt
-  Scope _ _ _ _ _ ret <- get
-  put (Scope inenv outenv infenv outfenv store Nothing)
-  case ret of
-    Just value -> return value
-    Nothing -> return VVoid
+  case getFunc name scope of
+    Print -> lift $ inbuildPrint paramValues
+    func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) -> do
+      let outenv' = Map.union funinenv funoutenv
+          outfenv' = Map.insert name func (Map.union funinfenv funoutfenv)
+          paramNames = map (\(Arg _ (Ident argname)) -> argname) args
+          -- paramValues = mapM evalExpr exprs
+          -- paramValues = map (`evalExpr` scope) exprs
+      let (store', locs_rev) = foldl (\(store', locs) value ->
+            let store''@(_, loc) = insertStore value store' in (store'', loc:locs))
+            (funstore, []) paramValues
+          inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv')
+            emptyEnv (zip paramNames (reverse locs_rev))
+          infenv' = emptyFEnv
+          scope' = Scope inenv' outenv' infenv' outfenv' store' Nothing
+      put scope'
+          -- scope'' = lift $ execStateT (execStmt stmt) scope'
+      execStmt stmt
+      Scope _ _ _ _ _ ret <- get
+      put (Scope inenv outenv infenv outfenv store Nothing)
+      case ret of
+        Just value -> return value
+        Nothing -> return VVoid
       -- Scope inenv outenv infenv outfenv store = scope''
   -- let ret =
   -- TODO ret value
@@ -182,4 +201,4 @@ evalExpr (EAdd expr1 addop expr2) = do
   return $ VInt val
 
 -- evalExpr _ _ = return $ VInt 0 -- TODO
-evalExpr _ = return $ VInt 0 -- TODO
+evalExpr _ = return $ VInt 42 -- TODO
