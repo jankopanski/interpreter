@@ -26,9 +26,6 @@ todo = return ()
 
 evalProgram :: Program -> Interpreter
 evalProgram (Program topdefs) = do
-  let addTopDef sc@(Scope inenv outenv infenv outfenv store ret) (FnDef retType (Ident name) args block) =
-        if Map.member name outfenv then error "TopDef function definition duplication" else
-        Scope inenv outenv infenv (Map.insert name (Func name retType args (BStmt block) sc) outfenv) store ret
   let scope@(Scope _ _ _ outfenv _ _) = foldl addTopDef emptyScope topdefs
   unless (Map.member "main" outfenv) $ error "Undefined reference to 'main'"
   put scope
@@ -36,6 +33,12 @@ evalProgram (Program topdefs) = do
     -- Just main@(Func "main" Int [] _ _) -> todo
     Just main@(Func "main" Int [] _ _) -> runMain main
     _ -> error "Invalid 'main' declaration"
+    where
+      addTopDef :: Scope -> TopDef -> Scope
+      addTopDef sc@(Scope inenv outenv infenv outfenv store ret) (FnDef retType (Ident name) args block) =
+        if Map.member name outfenv then error "TopDef function definition duplication" else
+        Scope inenv outenv infenv (Map.insert name (Func name retType args (BStmt block) sc) outfenv) store ret
+
 
 -- Main to wyjątek, który nie potrzebuje podmiany scopa
 runMain :: Func -> Interpreter
@@ -132,15 +135,19 @@ evalExpr (EApp (Ident name) exprs) = do
   scope@(Scope inenv outenv infenv outfenv store _) <- get
   -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
   --sprawdzanie liczby argumentów przy typach
-  let func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) = getFunc name scope
+  let func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) =
+        getFunc name scope
   let outenv' = Map.union funinenv funoutenv
       outfenv' = Map.insert name func (Map.union funinfenv funoutfenv)
       paramNames = map (\(Arg _ (Ident argname)) -> argname) args
       -- paramValues = mapM evalExpr exprs
   paramValues <- mapM evalExpr exprs
       -- paramValues = map (`evalExpr` scope) exprs
-  let (store', locs_rev) = foldl (\(store', locs) value -> let store''@(_, loc) = insertStore value store' in (store'', loc:locs)) (funstore, []) paramValues
-      inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv') emptyEnv (zip paramNames (reverse locs_rev))
+  let (store', locs_rev) = foldl (\(store', locs) value ->
+        let store''@(_, loc) = insertStore value store' in (store'', loc:locs))
+        (funstore, []) paramValues
+      inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv')
+        emptyEnv (zip paramNames (reverse locs_rev))
       infenv' = emptyFEnv
       scope' = Scope inenv' outenv' infenv' outfenv' store' Nothing
   put scope'
