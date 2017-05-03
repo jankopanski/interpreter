@@ -4,11 +4,11 @@ import System.IO ( getContents )
 import System.Environment ( getArgs, getProgName )
 import System.Exit ( exitFailure, exitSuccess )
 
-import LexMacchiato
+-- import LexMacchiato
 import ParMacchiato
-import SkelMacchiato
+-- import SkelMacchiato
 import PrintMacchiato
-import AbsMacchiato
+-- import AbsMacchiato
 import ErrM
 
 import Interpreter
