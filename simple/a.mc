@@ -1,5 +1,5 @@
 void func(int a) {
-  return;
+  //return;
 }
 
 int main () {
