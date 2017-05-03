@@ -1,4 +1,5 @@
 void func(int a) {
+  int y = 4;
   //return;
 }
 

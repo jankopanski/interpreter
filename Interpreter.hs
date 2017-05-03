@@ -26,10 +26,10 @@ todo = return ()
 
 evalProgram :: Program -> Interpreter
 evalProgram (Program topdefs) = do
-  let addTopDef sc@(Scope inenv outenv infenv outfenv store) (FnDef ret (Ident name) args block) =
+  let addTopDef sc@(Scope inenv outenv infenv outfenv store ret) (FnDef retType (Ident name) args block) =
         if Map.member name outfenv then error "TopDef function definition duplication" else
-        Scope inenv outenv infenv (Map.insert name (Func name ret args (BStmt block) sc) outfenv) store
-  let scope@(Scope _ _ _ outfenv _) = foldl addTopDef emptyScope topdefs
+        Scope inenv outenv infenv (Map.insert name (Func name retType args (BStmt block) sc) outfenv) store ret
+  let scope@(Scope _ _ _ outfenv _ _) = foldl addTopDef emptyScope topdefs
   unless (Map.member "main" outfenv) $ error "Undefined reference to 'main'"
   put scope
   case Map.lookup "main" outfenv of
@@ -53,7 +53,13 @@ execBlock (Block []) = return ()
 -- execBlock (Block (Ret expr:_)) = get >>= \scope -> void $ modifyStore (\store -> Map.insert undefLoc (evalExpr expr scope) store)
 -- execBlock (Block ((Ret expr):_)) = get >>= \scope -> modifyStore (\store -> Map.insert 0 (evalExpr expr scope) store)
 -- Dodaje wartość expr na lokacje 0
-execBlock (Block (stmt:stmts)) = execStmt stmt >> execBlock (Block stmts)
+-- execBlock (Block (stmt:stmts)) = execStmt stmt >> execBlock (Block stmts)
+execBlock (Block (stmt:stmts)) = do
+  execStmt stmt
+  Scope _ _ _ _ _ ret <- get
+  case ret of
+    Just _ -> return ()
+    Nothing -> execBlock (Block stmts)
 
 -- Statements --
 
@@ -62,13 +68,13 @@ execStmt :: Stmt -> Interpreter
 execStmt Empty = return ()
 
 execStmt (BStmt block) = do
-  Scope inenv outenv infenv outfenv store <- get
+  Scope inenv outenv infenv outfenv store ret <- get
   let newoutenv = Map.union inenv outenv
       newoutfenv = Map.union infenv outfenv
-  put (Scope emptyEnv newoutenv emptyFEnv newoutfenv store)
+  put (Scope emptyEnv newoutenv emptyFEnv newoutfenv store ret)
   execBlock block
-  Scope _ _ _ _ store' <- get
-  put (Scope inenv outenv infenv outfenv store')
+  Scope _ _ _ _ store' ret' <- get
+  put (Scope inenv outenv infenv outfenv store' ret')
 
 execStmt (Decl _ []) = return ()
 execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
@@ -76,12 +82,12 @@ execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
     -- TODO kontrola typów
     declVar :: Type -> Item -> Interpreter
     declVar t (NoInit (Ident name)) = do
-      Scope inenv outenv infenv outfenv store <- get
+      Scope inenv outenv infenv outfenv store ret <- get
       when (Map.member name inenv) $ error ("Redefinition of '" ++ name ++ "'")
       let inenv' = Map.insert name undefLoc inenv
-      put (Scope inenv' outenv infenv outfenv store)
+      put (Scope inenv' outenv infenv outfenv store ret)
     declVar t (Init (Ident name) expr) = do
-      scope@(Scope inenv outenv infenv outfenv store) <- get
+      scope@(Scope inenv outenv infenv outfenv store ret) <- get
       when (Map.member name inenv) $ error ("Redefinition of '" ++ name ++ "'")
       -- TODO kontrola typów
       -- let val = evalExpr expr scope
@@ -90,7 +96,8 @@ execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
           -- loc = newloc store
           inenv' = Map.insert name loc inenv
           -- store' = Map.insert loc val store
-      put (Scope inenv' outenv infenv outfenv store')
+      lift $ print val
+      put (Scope inenv' outenv infenv outfenv store' ret)
 --
 -- execStmt (SExp expr) = get >>= \scope -> void $ evalExpr expr scope
 execStmt (SExp expr) = do
@@ -122,27 +129,32 @@ evalExpr :: Expr -> InterpreterT Value
 
     -- inenv' = foldl (\env (paramName, paramVal) -> Map.insert paramName paramVal env) emptyEnv paramZip
 evalExpr (EApp (Ident name) exprs) = do
-  scope@(Scope inenv outenv infenv outfenv store) <- get
+  scope@(Scope inenv outenv infenv outfenv store _) <- get
   -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
   --sprawdzanie liczby argumentów przy typach
-  let func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore)) = getFunc name scope
+  let func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) = getFunc name scope
   let outenv' = Map.union funinenv funoutenv
-      outfenv' = Map.insert name func (Map.union infenv outfenv)
+      outfenv' = Map.insert name func (Map.union funinfenv funoutfenv)
       paramNames = map (\(Arg _ (Ident argname)) -> argname) args
       -- paramValues = mapM evalExpr exprs
   paramValues <- mapM evalExpr exprs
       -- paramValues = map (`evalExpr` scope) exprs
-  let (store', locs_rev) = foldl (\(store', locs) value -> let store''@(_, loc) = insertStore value store' in (store'', loc:locs)) (store, []) paramValues
+  let (store', locs_rev) = foldl (\(store', locs) value -> let store''@(_, loc) = insertStore value store' in (store'', loc:locs)) (funstore, []) paramValues
       inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv') emptyEnv (zip paramNames (reverse locs_rev))
       infenv' = emptyFEnv
-      scope' = Scope inenv' outenv' infenv' outfenv' store'
+      scope' = Scope inenv' outenv' infenv' outfenv' store' Nothing
   put scope'
       -- scope'' = lift $ execStateT (execStmt stmt) scope'
   execStmt stmt
+  Scope _ _ _ _ _ ret <- get
+  put (Scope inenv outenv infenv outfenv store Nothing)
+  case ret of
+    Just value -> return value
+    Nothing -> return VVoid
       -- Scope inenv outenv infenv outfenv store = scope''
   -- let ret =
   -- TODO ret value
-  return $ VInt 42
+  -- return $ VInt 42
 
 {-
 get scope
