@@ -42,8 +42,8 @@ evalProgram (Program topdefs) = do
 
 -- Main to wyjątek, który nie potrzebuje podmiany scopa
 runMain :: Func -> Interpreter
--- runMain (Func _ _ _ (BStmt block) _) = execBlock block
-runMain (Func _ _ _ (BStmt block) _) = get >>= lift . print >> execBlock block
+runMain (Func _ _ _ (BStmt block) _) = execBlock block
+-- runMain (Func _ _ _ (BStmt block) _) = get >>= lift . print >> execBlock block
 -- TODO Main discards return
   -- dodać argsy
   -- sprawdzić ret
@@ -99,12 +99,12 @@ execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
           -- loc = newloc store
           inenv' = Map.insert name loc inenv
           -- store' = Map.insert loc val store
-      lift $ print val
+      -- lift $ print val
       put (Scope inenv' outenv infenv outfenv store' ret)
 
 execStmt (Ret expr) = do
   val <- evalExpr expr
-  lift $ print val
+  -- lift $ print val
   modify (\(Scope inenv outenv infenv outfenv store _) ->
     Scope inenv outenv infenv outfenv store (Just val))
 
