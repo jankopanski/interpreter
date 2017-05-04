@@ -1,7 +1,0 @@
-int fun() {
-
-}
-
-int main() {
-
-}
