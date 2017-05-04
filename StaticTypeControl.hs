@@ -4,6 +4,7 @@ module StaticTypeControl where
 import Control.Monad.State
 import Data.List
 import Data.Maybe
+import Data.Either
 import qualified Data.Map as Map
 
 import AbsMacchiato
@@ -23,6 +24,9 @@ emptyTypeScope = (emptyTypeEnv, Nothing)
 
 emptyStmt :: TypeChecker
 emptyStmt = return $ Right ()
+
+fromRight :: Either e a -> a
+fromRight (Right a) = a
 
 maybeToEither :: e -> Maybe a -> Either e a
 maybeToEither = flip maybe Right . Left
@@ -99,11 +103,62 @@ typeOfExpr token@(EVar (Ident name)) = do
 
 typeOfExpr (ELitInt _) = return $ Right Int
 
-typeOfExpr token@(EAdd expr1 _ expr2) = do
+typeOfExpr ELitTrue = return $ Right Bool
+
+typeOfExpr ELitFalse = return $ Right Bool
+
+typeOfExpr (EString _) = return $ Right Str
+
+typeOfExpr token@(Neg expr) = do
+  t <- typeOfExpr expr
+  case t of
+    Right Int -> return $ Right Int
+    _ -> return $ Left $ show token
+
+typeOfExpr token@(Not expr) = do
+  t <- typeOfExpr expr
+  case t of
+    Right Bool -> return $ Right Bool
+    _ -> return $ Left $ show token
+
+typeOfExpr token@(EMul expr1 _ expr2) = typeOfAddMul token expr1 expr2
+
+typeOfExpr token@(EAdd expr1 _ expr2) = typeOfAddMul token expr1 expr2
+
+typeOfExpr token@(ERel expr1 _ expr2) = do
+  t1 <- typeOfExpr expr1
+  t2 <- typeOfExpr expr2
+  let beither = liftM2 (==) t1 t2
+  case beither of
+    Right True -> case fromRight t1 of
+      Int -> return t1
+      Bool -> return t1
+      Str -> return t1
+      Tup _ -> return t1
+      _ -> return $ Left $ show token
+    Right False -> return $ Left $ show token
+    Left err -> return $ Left err
+
+typeOfExpr token@(EAnd expr1 expr2) = typeOfAndOr token expr1 expr2
+
+typeOfExpr token@(EOr expr1 expr2) = typeOfAndOr token expr1 expr2
+
+typeOfAddMul :: Expr -> Expr -> Expr -> TypeCheckerT Type
+typeOfAddMul token expr1 expr2 = do
   t1 <- typeOfExpr expr1
   t2 <- typeOfExpr expr2
   let beither = liftM2 (\t1' t2' -> t1' == Int && t2' == Int) t1 t2
   case beither of
     Right True -> return $ Right Int
+    Right False -> return $ Left $ show token
+    Left err -> return $ Left err
+
+typeOfAndOr :: Expr -> Expr -> Expr -> TypeCheckerT Type
+typeOfAndOr token expr1 expr2 = do
+  t1 <- typeOfExpr expr1
+  t2 <- typeOfExpr expr2
+  let beither = liftM2 (\t1' t2' -> t1' == Bool && t2' == Bool) t1 t2
+  case beither of
+    Right True -> return $ Right Bool
     Right False -> return $ Left $ show token
     Left err -> return $ Left err

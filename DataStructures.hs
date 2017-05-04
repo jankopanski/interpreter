@@ -20,6 +20,7 @@ data Value =
   | VTup [Value]
   | VArr (Array.Array Int Value)
   | VMap (Map.Map Value Value)
+  deriving (Eq, Ord)
 instance Show Value where
   show (VInt n) = show n
   show _ = "un"

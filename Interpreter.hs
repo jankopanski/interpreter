@@ -109,6 +109,10 @@ evalExpr (EVar (Ident name)) = do
 
 evalExpr (ELitInt n) = return $ VInt n
 
+evalExpr ELitTrue = return $ VBool True
+
+evalExpr ELitFalse = return $ VBool False
+
 evalExpr (EApp (Ident name) exprs) = do
   scope@(Scope inenv outenv infenv outfenv store _) <- get
   -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
@@ -135,6 +139,27 @@ evalExpr (EApp (Ident name) exprs) = do
         Just value -> return value
         Nothing -> return VVoid
 
+evalExpr (EString s) = return $ VString s
+
+evalExpr (Neg expr) = do
+  VInt val <- evalExpr expr
+  return $ VInt $ negate val
+
+evalExpr (Not expr) = do
+  VBool bval <- evalExpr expr
+  return $ VBool $ not bval
+
+evalExpr (EMul expr1 mulop expr2) = do
+  VInt val1 <- evalExpr expr1
+  VInt val2 <- evalExpr expr2
+  when (val2 == 0 && (mulop == Div || mulop == Mod)) $ error "Division by zero"
+  let op = case mulop of
+        Times -> (*)
+        Div -> div
+        Mod -> mod
+      val = val1 `op` val2
+  return $ VInt val
+
 evalExpr (EAdd expr1 addop expr2) = do
   VInt val1 <- evalExpr expr1
   VInt val2 <- evalExpr expr2
@@ -144,4 +169,25 @@ evalExpr (EAdd expr1 addop expr2) = do
       val = val1 `op` val2
   return $ VInt val
 
-evalExpr _ = return $ VInt 42 -- TODO
+evalExpr (ERel expr1 relop expr2) = do
+  boxval1 <- evalExpr expr1
+  boxval2 <- evalExpr expr2
+  let op = case relop of
+        LTH -> (<)
+        LE -> (<=)
+        GTH -> (>)
+        GE -> (>=)
+        EQU -> (==)
+        NE -> (/=)
+      bval = boxval1 `op` boxval2
+  return $ VBool bval
+
+evalExpr (EAnd expr1 expr2) = do
+  VBool bval1 <- evalExpr expr1
+  VBool bval2 <- evalExpr expr2
+  return $ VBool (bval1 && bval2)
+
+evalExpr (EOr expr1 expr2) = do
+  VBool bval1 <- evalExpr expr1
+  VBool bval2 <- evalExpr expr2
+  return $ VBool (bval1 || bval2)
