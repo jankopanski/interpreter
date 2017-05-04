@@ -12,10 +12,6 @@ import AbsMacchiato
 type Name = String
 type TypeEnv = Map.Map Name Type
 type TypeScope = (TypeEnv, Maybe Type)
-
--- type TypeChecker = Reader TypeEnv Type
--- type TypeCheckerT a = Reader TypeEnv (Either String a)
--- type TypeChecker = TypeCheckerT ()
 type TypeCheckerT a = State TypeScope (Either String a)
 type TypeChecker = TypeCheckerT ()
 
@@ -25,13 +21,17 @@ emptyTypeEnv = Map.empty -- Ręczna obsługa funkcji wbudowanych
 emptyTypeScope :: TypeScope
 emptyTypeScope = (emptyTypeEnv, Nothing)
 
+emptyStmt :: TypeChecker
+emptyStmt = return $ Right ()
+
+maybeToEither :: e -> Maybe a -> Either e a
+maybeToEither = flip maybe Right . Left
+
 ok :: TypeChecker
 ok = return $ Right ()
 
 typeControl :: Program -> Either String ()
 typeControl program = evalState (checkProgram program) emptyTypeScope
--- typeControl program = runReader (checkProgram program) emptyTypeEnv
--- typeControl p = Right ()
 
 checkProgram :: Program -> TypeChecker
 checkProgram (Program topdefs) = do
@@ -54,7 +54,6 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
     _ -> return $ Left $ show token
 
 checkBlock :: Block -> TypeChecker
--- checkBlock (Block []) = emptyStmt
 checkBlock token@(Block stmts) = do
   scopes <- mapM (\stmt -> modify (\(env, _) -> (env, Nothing)) >> typeOfStmt stmt >> get) stmts
   let return_types = mapMaybe snd scopes
@@ -65,31 +64,7 @@ checkBlock token@(Block stmts) = do
       emptyStmt
     _ -> return $ Left $ show token
 
-  -- if null return_types
-  --   then return $ Right ()
-  --   else if length (nub return_types) > 1
-  --     then return $ Left $ show token
-  --     else modify (\(env, _) -> (env, head return_types)) >>= return $ Right ()
-    -- else if length $ nub return_types > 1
-          -- then return $ Left token
-          -- else modify (\(env, _) -> (env, head return_types) >> return $ Right ()
-
--- checkBlock (Block stmts) = do
-  -- scope <- get
-  -- foldM checkStmt scope stmts
-  --   where
-  --     checkStmt :: TypeScope -> Stmt -> TypeChecker
-  --     checkStmt modify (\(env, _) -> (env, Nothing))
-  --     typeOfStmt stmt
-
--- typeOf :: Token Program -> Either String Type
--- typeOf (Token (Program topdefs)) = Left "ala"
-
-emptyStmt :: TypeChecker
-emptyStmt = return $ Right ()
-
--- Statement block - przywraca env typów
-
+-- Statements --
 typeOfStmt :: Stmt -> TypeChecker
 
 typeOfStmt Empty = emptyStmt
@@ -107,7 +82,6 @@ typeOfStmt (Ret expr) = do
       modify (\(env, _) -> (env, Just t))
       emptyStmt
     Left err -> return $ Left err
-  -- ala <- liftM (\t -> modify (\(env, _) -> (env, Just t))) exprtype
 
 typeOfStmt VRet = modify (\(env, _) -> (env, Just Void)) >> emptyStmt
 
@@ -115,7 +89,15 @@ typeOfStmt (SExp expr) = do
   _ <- typeOfExpr expr
   emptyStmt
 
+-- Expressions --
 typeOfExpr :: Expr -> TypeCheckerT Type
+
+typeOfExpr token@(EVar (Ident name)) = do
+  (env, _) <- get
+  return $ maybeToEither (show token) (Map.lookup name env)
+
+typeOfExpr (ELitInt _) = return $ Right Int
+
 typeOfExpr token@(EAdd expr1 _ expr2) = do
   t1 <- typeOfExpr expr1
   t2 <- typeOfExpr expr2
@@ -124,7 +106,3 @@ typeOfExpr token@(EAdd expr1 _ expr2) = do
     Right True -> return $ Right Int
     Right False -> return $ Left $ show token
     Left err -> return $ Left err
-  -- when True $ error "ala"
-  -- return $ Right Int
-
-typeOfExpr _ = return $ Right Int

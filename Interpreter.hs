@@ -30,7 +30,6 @@ evalProgram (Program topdefs) = do
   unless (Map.member "main" outfenv) $ error "Undefined reference to 'main'"
   put scope
   case Map.lookup "main" outfenv of
-    -- Just main@(Func "main" Int [] _ _) -> todo
     Just main@(Func "main" Int [] _ _) -> runMain main
     _ -> error "Invalid 'main' declaration"
     where
@@ -55,7 +54,6 @@ execBlock (Block (stmt:stmts)) = do
     Nothing -> execBlock (Block stmts)
 
 -- Statements --
-
 execStmt :: Stmt -> Interpreter
 
 execStmt Empty = return ()
@@ -99,7 +97,6 @@ execStmt (SExp expr) = do
   return ()
 
 -- Expressions --
-
 evalExpr :: Expr -> InterpreterT Value
 
 evalExpr (EVar (Ident name)) = do
