@@ -7,13 +7,19 @@ import qualified Data.Map as Map
 
 import AbsMacchiato
 
+import StaticTypeControl
 import DataStructures
 import InbuildFunctions
 import Utils
 
 
+-- interpret :: Program-> IO ()
+-- interpret p = evalStateT (evalProgram p) emptyScope
+
 interpret :: Program-> IO ()
-interpret p = evalStateT (evalProgram p) emptyScope
+interpret program = case typeControl program of
+  Right () -> evalStateT (evalProgram program) emptyScope
+  Left err -> print err
 
 todo :: Interpreter
 todo = return ()

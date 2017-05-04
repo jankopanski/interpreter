@@ -91,7 +91,25 @@ emptyStmt = return $ Right ()
 -- Statement block - przywraca env typów
 
 typeOfStmt :: Stmt -> TypeChecker
+
 typeOfStmt Empty = emptyStmt
+
+typeOfStmt (BStmt block) = do
+  (env, _) <- get
+  _ <- checkBlock block
+  modify (\(_, ret) -> (env, ret))
+  emptyStmt
+
+typeOfStmt (Ret expr) = do
+  exprtype <- typeOfExpr expr
+  case exprtype of
+    Right t -> do
+      modify (\(env, _) -> (env, Just t))
+      emptyStmt
+    Left err -> return $ Left err
+  -- ala <- liftM (\t -> modify (\(env, _) -> (env, Just t))) exprtype
+
+typeOfStmt VRet = modify (\(env, _) -> (env, Just Void)) >> emptyStmt
 
 typeOfStmt (SExp expr) = do
   _ <- typeOfExpr expr
