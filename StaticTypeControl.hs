@@ -48,7 +48,8 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
   _ <- checkBlock block
   (_, ret') <- get
   put (env', ret')
-  let bmaybe = fmap (==t) ret'
+  let ret'' = if isNothing ret' then Just Void else ret'
+  let bmaybe = fmap (==t) ret''
   case bmaybe of
     Just True -> emptyStmt
     _ -> return $ Left $ show token
