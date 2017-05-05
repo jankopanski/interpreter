@@ -107,6 +107,22 @@ typeOfExpr ELitTrue = return $ Right Bool
 
 typeOfExpr ELitFalse = return $ Right Bool
 
+typeOfExpr token@(EApp (Ident name) exprs) = do
+  (env, _) <- get
+  case Map.lookup name env of
+    Nothing -> return $ Left $ "Function " ++ name ++ " undefined " ++ show token
+    Just (Fun rettype argtypes) -> do
+      either_exprtypes <- mapM typeOfExpr exprs
+      let check = foldM checkArgType True (zip either_exprtypes argtypes)
+      case check of
+        Left err -> return $ Left err
+        Right True -> return $ Right rettype
+        Right False -> return $ Left $ show token
+    Just _ -> return $ Left $ "Variable " ++ name ++ " is not a function " ++ show token
+    where
+      checkArgType :: Bool -> (Either String Type, Type) -> Either String Bool
+      checkArgType acc (et, argt) = fmap (\t -> acc && t == argt) et
+
 typeOfExpr (EString _) = return $ Right Str
 
 typeOfExpr token@(Neg expr) = do
