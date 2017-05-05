@@ -25,10 +25,10 @@ instance Show Value where
   show (VInt n) = show n
   show _ = "un"
 
-data Func = Func FName Type [Arg] Stmt Scope | Print
+data Func = Func FName [Arg] Stmt Scope | Print
 instance Show Func where
-  show (Func name t args _ scope) = "Func " ++ show name ++ " " ++ show t ++ " "
-    ++ show args ++ " " ++ show scope
+  show (Func name args _ scope) =
+    "Func " ++ show name ++ " " ++ show args ++ " " ++ show scope
   show Print = "print"
 
 data Scope = Scope { innerEnv :: Env

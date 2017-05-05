@@ -30,16 +30,16 @@ evalProgram (Program topdefs) = do
   unless (Map.member "main" outfenv) $ error "Undefined reference to 'main'"
   put scope
   case Map.lookup "main" outfenv of
-    Just main@(Func "main" Int [] _ _) -> runMain main
+    Just main@(Func "main" [] _ _) -> runMain main
     _ -> error "Invalid 'main' declaration"
     where
       addTopDef :: Scope -> TopDef -> Scope
-      addTopDef sc@(Scope inenv outenv infenv outfenv store ret) (FnDef retType (Ident name) args block) =
+      addTopDef sc@(Scope inenv outenv infenv outfenv store ret) (FnDef _ (Ident name) args block) =
         if Map.member name outfenv then error "TopDef function definition duplication" else
-        Scope inenv outenv infenv (Map.insert name (Func name retType args (BStmt block) sc) outfenv) store ret
+        Scope inenv outenv infenv (Map.insert name (Func name args (BStmt block) sc) outfenv) store ret
 
 runMain :: Func -> Interpreter
-runMain (Func _ _ _ (BStmt block) _) = execBlock block
+runMain (Func _ _ (BStmt block) _) = execBlock block
 -- runMain (Func _ _ _ (BStmt block) _) = get >>= lift . print >> execBlock block
 -- dodać argsy ?
 -- sprawdzić ret
@@ -120,7 +120,7 @@ evalExpr (EApp (Ident name) exprs) = do
   paramValues <- mapM evalExpr exprs
   case getFunc name scope of
     Print -> lift $ inbuildPrint paramValues
-    func@(Func _ _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) -> do
+    func@(Func _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) -> do
       let outenv' = Map.union funinenv funoutenv
           outfenv' = Map.insert name func (Map.union funinfenv funoutfenv)
           paramNames = map (\(Arg _ (Ident argname)) -> argname) args
