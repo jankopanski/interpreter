@@ -71,11 +71,13 @@ execStmt (BStmt block) = do
   Scope _ _ _ _ store' ret' <- get
   put (Scope inenv outenv infenv outfenv store' ret')
 
--- execStmt (FunLoc _ (Ident name) args block) = do
---   scope@(Scope inenv outenv infenv outfenv store ret) <- get
---   wher (Map.member name infenv) $ error ("Redefinition of '" ++ name ++ "'")
---   let fun
---   let infenv' = Map.insert infenv name
+execStmt (FunLoc _ (Ident name) args stmt) = do
+  scope@(Scope inenv outenv infenv outfenv store ret) <- get
+  when (Map.member name infenv) $ error ("Redefinition of '" ++ name ++ "'")
+  let argnames = map (\(Arg _ (Ident argname)) -> argname) args
+      func = Func name argnames stmt scope
+      infenv' = Map.insert name func infenv
+  put (Scope inenv outenv infenv' outfenv store ret)
 
 execStmt (Decl _ []) = return ()
 execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
@@ -137,7 +139,8 @@ evalExpr (EApp (Ident name) exprs) = do
       let (store', locs_rev) = foldl (\(store', locs) value ->
             let store''@(_, loc) = insertStore value store' in (store'', loc:locs))
             (funstore, []) argvalues
-          inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv')
+            -- Adding args to inenv
+          inenv' = foldl (\inenv' (argname, loc) -> Map.insert argname loc inenv')
             emptyEnv (zip argnames (reverse locs_rev))
           infenv' = emptyFEnv
           scope' = Scope inenv' outenv' infenv' outfenv' store' Nothing

@@ -81,6 +81,25 @@ typeOfStmt (BStmt block) = do
   modify (\(_, ret) -> (env, ret))
   emptyStmt
 
+--spr ret, przywróć stan
+-- dodać fun type do env
+--fun type nie musi znać nazw argumentów
+-- nadpisać env
+typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
+  (env, ret) <- get
+  res <- typeOfStmt stmt
+  case res of
+    Left err -> return $ Left err
+    _ -> do
+    (_, ret') <- get
+    let argtypes = map (\(Arg argtype _) -> argtype) args
+        env' = Map.insert name (Fun t argtypes) env
+        b = case ret' of
+          Nothing -> t == Void
+          Just rt -> rt == t
+    if b then put (env', ret) >> emptyStmt else return $ Left $ show token
+
+
 typeOfStmt (Decl _ []) = emptyStmt
 typeOfStmt (Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
   where
