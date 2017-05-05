@@ -122,7 +122,11 @@ typeOfStmt token@(Ass (Ident name) expr) = do
 
 typeOfStmt token@(Incr (Ident name)) = isExprInt token name
 
-typeOfStmt token@(Incr (Ident name)) = isExprInt token name
+typeOfStmt token@(Decr (Ident name)) = isExprInt token name
+
+typeOfStmt token@(Cond expr _) = isExprBool token expr
+
+typeOfStmt token@(CondElse expr _ _) = isExprBool token expr
 
 typeOfStmt (Ret expr) = do
   exprtype <- typeOfExpr expr
@@ -144,6 +148,14 @@ isExprInt token name = do
   case Map.lookup name env of
     Nothing -> failStmt token
     Just t -> if t == Int then emptyStmt else failStmt token
+
+isExprBool :: Stmt -> Expr -> TypeChecker
+isExprBool token expr = do
+  et <- typeOfExpr expr
+  case et of
+    Left err -> return $ Left err
+    Right Bool -> emptyStmt
+    _ -> failStmt token
 
 -- Expressions --
 typeOfExpr :: Expr -> TypeCheckerT Type

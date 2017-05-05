@@ -130,6 +130,12 @@ execStmt (Decr ident) = do
   VInt n <- evalExpr (EVar ident)
   execStmt (Ass ident (ELitInt (n - 1)))
 
+execStmt (Cond expr stmt) = execStmt (CondElse expr stmt Empty)
+
+execStmt (CondElse expr stmt1 stmt2) = do
+  VBool b <- evalExpr expr
+  if b then execStmt stmt1 else execStmt stmt2
+
 execStmt (Ret expr) = do
   val <- evalExpr expr
   modify (\(Scope inenv outenv infenv outfenv store _) ->
