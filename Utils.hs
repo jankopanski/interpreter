@@ -30,5 +30,8 @@ modifyStore f = modify (\(Scope inenv outenv infenv outfenv store ret) ->
 insertStore :: Value -> Store -> Store
 insertStore val (s, n) = let n' = n + 1 in (Map.insert n' val s, n')
 
+updateStore :: Loc -> Value -> Store -> Store
+updateStore loc val (s, l) = (Map.insert loc val s, l)
+
 getValue :: Loc -> Store -> Value
 getValue loc (s, _) = s Map.! loc

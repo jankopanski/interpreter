@@ -26,6 +26,9 @@ emptyTypeScope = (emptyTypeEnv, Nothing)
 emptyStmt :: TypeChecker
 emptyStmt = return $ Right ()
 
+failStmt :: Stmt -> TypeChecker
+failStmt token = return $ Left $ show token
+
 fromRight :: Either e a -> a
 fromRight (Right a) = a
 
@@ -81,10 +84,6 @@ typeOfStmt (BStmt block) = do
   modify (\(_, ret) -> (env, ret))
   emptyStmt
 
---spr ret, przywróć stan
--- dodać fun type do env
---fun type nie musi znać nazw argumentów
--- nadpisać env
 typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
   (env, ret) <- get
   res <- typeOfStmt stmt
@@ -99,7 +98,6 @@ typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
           Just rt -> rt == t
     if b then put (env', ret) >> emptyStmt else return $ Left $ show token
 
-
 typeOfStmt (Decl _ []) = emptyStmt
 typeOfStmt (Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
   where
@@ -112,6 +110,19 @@ typeOfStmt (Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
         Right True -> checkDecl (NoInit (Ident name))
         Right False -> return $ Left $ show token
         Left err -> return $ Left err
+
+typeOfStmt token@(Ass (Ident name) expr) = do
+  (env, _) <- get
+  et <- typeOfExpr expr
+  case Map.lookup name env of
+    Nothing -> failStmt token
+    Just t -> case et of
+      Right t' -> if t == t' then emptyStmt else failStmt token
+      Left err -> return $ Left err
+
+typeOfStmt token@(Incr (Ident name)) = isExprInt token name
+
+typeOfStmt token@(Incr (Ident name)) = isExprInt token name
 
 typeOfStmt (Ret expr) = do
   exprtype <- typeOfExpr expr
@@ -126,6 +137,13 @@ typeOfStmt VRet = modify (\(env, _) -> (env, Just Void)) >> emptyStmt
 typeOfStmt (SExp expr) = do
   _ <- typeOfExpr expr
   emptyStmt
+
+isExprInt :: Stmt -> Name -> TypeChecker
+isExprInt token name = do
+  (env, _) <- get
+  case Map.lookup name env of
+    Nothing -> failStmt token
+    Just t -> if t == Int then emptyStmt else failStmt token
 
 -- Expressions --
 typeOfExpr :: Expr -> TypeCheckerT Type

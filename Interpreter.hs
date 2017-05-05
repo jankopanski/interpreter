@@ -96,6 +96,40 @@ execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
           inenv' = Map.insert name loc inenv
       put (Scope inenv' outenv infenv outfenv store' ret)
 
+execStmt (Ass (Ident name) expr) = do
+  scope@(Scope inenv outenv _ _ _ _) <- get
+  val <- evalExpr expr
+  case Map.lookup name inenv of
+    Just loc -> updateInenvValue loc val scope
+    Nothing -> case Map.lookup name outenv of
+      Just loc -> updateOutenvValue loc val scope
+      Nothing -> error $ "Undefined variable: '" ++ name ++ "'"
+  where
+    updateInenvValue :: Loc -> Value -> Scope -> Interpreter
+    updateInenvValue 0 val (Scope inenv outenv infenv outfenv store ret) = do
+      let store'@(_, loc') = insertStore val store
+          inenv' = Map.insert name loc' inenv
+      put (Scope inenv' outenv infenv outfenv store' ret)
+    updateInenvValue loc val (Scope inenv outenv infenv outfenv store ret) = do
+      let store' = updateStore loc val store
+      put (Scope inenv outenv infenv outfenv store' ret)
+    updateOutenvValue :: Loc -> Value -> Scope -> Interpreter
+    updateOutenvValue 0 val (Scope inenv outenv infenv outfenv store ret) = do
+      let store'@(_, loc') = insertStore val store
+          outenv' = Map.insert name loc' outenv
+      put (Scope inenv outenv' infenv outfenv store' ret)
+    updateOutenvValue loc val (Scope inenv outenv infenv outfenv store ret) = do
+      let store' = updateStore loc val store
+      put (Scope inenv outenv infenv outfenv store' ret)
+
+execStmt (Incr ident) = do
+  VInt n <- evalExpr (EVar ident)
+  execStmt (Ass ident (ELitInt (n + 1)))
+
+execStmt (Decr ident) = do
+  VInt n <- evalExpr (EVar ident)
+  execStmt (Ass ident (ELitInt (n - 1)))
+
 execStmt (Ret expr) = do
   val <- evalExpr expr
   modify (\(Scope inenv outenv infenv outfenv store _) ->
