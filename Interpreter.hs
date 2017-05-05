@@ -35,8 +35,12 @@ evalProgram (Program topdefs) = do
     where
       addTopDef :: Scope -> TopDef -> Scope
       addTopDef sc@(Scope inenv outenv infenv outfenv store ret) (FnDef _ (Ident name) args block) =
-        if Map.member name outfenv then error "TopDef function definition duplication" else
-        Scope inenv outenv infenv (Map.insert name (Func name args (BStmt block) sc) outfenv) store ret
+        if Map.member name outfenv
+          then error "TopDef function definition duplication"
+          else
+            let argnames = map (\(Arg _ (Ident argname)) -> argname) args
+                func = Func name argnames (BStmt block) sc
+            in Scope inenv outenv infenv (Map.insert name func outfenv) store ret
 
 runMain :: Func -> Interpreter
 runMain (Func _ _ (BStmt block) _) = execBlock block
@@ -66,6 +70,12 @@ execStmt (BStmt block) = do
   execBlock block
   Scope _ _ _ _ store' ret' <- get
   put (Scope inenv outenv infenv outfenv store' ret')
+
+-- execStmt (FunLoc _ (Ident name) args block) = do
+--   scope@(Scope inenv outenv infenv outfenv store ret) <- get
+--   wher (Map.member name infenv) $ error ("Redefinition of '" ++ name ++ "'")
+--   let fun
+--   let infenv' = Map.insert infenv name
 
 execStmt (Decl _ []) = return ()
 execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
@@ -117,18 +127,18 @@ evalExpr (EApp (Ident name) exprs) = do
   scope@(Scope inenv outenv infenv outfenv store _) <- get
   -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
   --sprawdzanie liczby argumentów przy typach
-  paramValues <- mapM evalExpr exprs
+  argvalues <- mapM evalExpr exprs
   case getFunc name scope of
-    Print -> lift $ inbuildPrint paramValues
-    func@(Func _ args stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) -> do
+    Print -> lift $ inbuildPrint argvalues
+    func@(Func _ argnames stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) -> do
       let outenv' = Map.union funinenv funoutenv
+          -- Adding function definition to function scope for recursion
           outfenv' = Map.insert name func (Map.union funinfenv funoutfenv)
-          paramNames = map (\(Arg _ (Ident argname)) -> argname) args
       let (store', locs_rev) = foldl (\(store', locs) value ->
             let store''@(_, loc) = insertStore value store' in (store'', loc:locs))
-            (funstore, []) paramValues
+            (funstore, []) argvalues
           inenv' = foldl (\inenv' (varname, loc) -> Map.insert varname loc inenv')
-            emptyEnv (zip paramNames (reverse locs_rev))
+            emptyEnv (zip argnames (reverse locs_rev))
           infenv' = emptyFEnv
           scope' = Scope inenv' outenv' infenv' outfenv' store' Nothing
       put scope'
