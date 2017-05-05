@@ -5,6 +5,7 @@ import Control.Monad.State
 import Data.List
 import Data.Maybe
 import Data.Either
+import Control.Arrow
 import qualified Data.Map as Map
 
 import AbsMacchiato
@@ -80,6 +81,19 @@ typeOfStmt (BStmt block) = do
   modify (\(_, ret) -> (env, ret))
   emptyStmt
 
+typeOfStmt (Decl _ []) = emptyStmt
+typeOfStmt (Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
+  where
+    checkDecl :: Item -> TypeChecker
+    checkDecl (NoInit (Ident name)) = modify (first (Map.insert name t)) >> emptyStmt
+    checkDecl token@(Init (Ident name) expr) = do
+      exprtype <- typeOfExpr expr
+      let beither = fmap (==t) exprtype
+      case beither of
+        Right True -> checkDecl (NoInit (Ident name))
+        Right False -> return $ Left $ show token
+        Left err -> return $ Left err
+
 typeOfStmt (Ret expr) = do
   exprtype <- typeOfExpr expr
   case exprtype of
@@ -110,7 +124,8 @@ typeOfExpr ELitFalse = return $ Right Bool
 typeOfExpr token@(EApp (Ident name) exprs) = do
   (env, _) <- get
   case Map.lookup name env of
-    Nothing -> return $ Left $ "Function " ++ name ++ " undefined " ++ show token
+    Nothing -> return $ lookupInbuilds name
+    -- Nothing -> return $ Left $ "Function " ++ name ++ " undefined " ++ show token
     Just (Fun rettype argtypes) -> do
       either_exprtypes <- mapM typeOfExpr exprs
       let check = foldM checkArgType True (zip either_exprtypes argtypes)
@@ -122,6 +137,9 @@ typeOfExpr token@(EApp (Ident name) exprs) = do
     where
       checkArgType :: Bool -> (Either String Type, Type) -> Either String Bool
       checkArgType acc (et, argt) = fmap (\t -> acc && t == argt) et
+      lookupInbuilds :: Name -> Either String Type
+      lookupInbuilds "print" = Right Void
+      -- lookupInbuilds _ = Left $ "Function " ++ name ++ " undefined " ++ show token
 
 typeOfExpr (EString _) = return $ Right Str
 
