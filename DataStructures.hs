@@ -2,6 +2,7 @@ module DataStructures where
 
 
 import Control.Monad.State
+import Data.Char(toLower)
 import qualified Data.Map as Map
 import qualified Data.Array as Array
 
@@ -23,7 +24,12 @@ data Value =
   deriving (Eq, Ord)
 instance Show Value where
   show (VInt n) = show n
-  show _ = "un"
+  show (VBool b) = let s = show b in toLower (head s) : tail s
+  show (VString s) = s
+  show (VTup t) = show t
+  show (VArr a) = show a
+  show (VMap m) = show m
+  show VVoid = error "Void type is not printable"
 
 data Func = Func FName [Name] Stmt Scope | Print
 instance Show Func where

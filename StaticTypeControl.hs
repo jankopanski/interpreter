@@ -124,9 +124,23 @@ typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 
 typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
 
-typeOfStmt token@(Cond expr _) = isExprBool token expr
+-- typeOfStmt token@(Cond expr _) = isExprBool token expr
+--
+-- typeOfStmt token@(CondElse expr _ _) = isExprBool token expr
 
-typeOfStmt token@(CondElse expr _ _) = isExprBool token expr
+typeOfStmt token@(Cond expr stmt) = do
+  et <- typeOfExpr expr
+  case et of
+    Left err -> return $ Left err
+    Right Bool -> typeOfStmt stmt
+    _ -> failStmt token
+
+typeOfStmt token@(CondElse expr stmt1 stmt2) = do
+  et <- typeOfExpr expr
+  case et of
+    Left err -> return $ Left err
+    Right Bool -> typeOfStmt stmt1 >> typeOfStmt stmt2
+    _ -> failStmt token
 
 typeOfStmt token@(While expr _) = do
   et <- typeOfExpr expr

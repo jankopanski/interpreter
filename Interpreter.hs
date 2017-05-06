@@ -21,8 +21,7 @@ interpret program = case typeControl program of
   Right () -> evalStateT (evalProgram program) emptyScope
   Left err -> print err
 
-todo :: Interpreter
-todo = return ()
+-- TODO konwersje string int
 
 evalProgram :: Program -> Interpreter
 evalProgram (Program topdefs) = do
@@ -163,10 +162,12 @@ execStmt (ForUp (Ident name) expr1 expr2 stmt) = do
           Scope inenv outenv infenv outfenv _ _ <- get
           execStmt stmt
           Scope _ _ _ _ store' ret' <- get
-          let n1' = n1 + 1
-              store'' = updateStore loc (VInt n1') store'
+
+          let VInt n1' = getValue loc store'
+              n1'' = n1' + 1
+              store'' = updateStore loc (VInt n1'') store'
           put (Scope inenv outenv infenv outfenv store'' ret')
-          iterateUp n1' n2 loc
+          iterateUp n1'' n2 loc
 
 execStmt (ForDown (Ident name) expr1 expr2 stmt) = do
   val@(VInt n1) <- evalExpr expr1
@@ -185,10 +186,11 @@ execStmt (ForDown (Ident name) expr1 expr2 stmt) = do
           Scope inenv outenv infenv outfenv _ _ <- get
           execStmt stmt
           Scope _ _ _ _ store' ret' <- get
-          let n1' = n1 - 1
-              store'' = updateStore loc (VInt n1') store'
+          let VInt n1' = getValue loc store'
+              n1'' = n1' - 1
+              store'' = updateStore loc (VInt n1'') store'
           put (Scope inenv outenv infenv outfenv store'' ret')
-          iterateDown n1' n2 loc
+          iterateDown n1'' n2 loc
 
 execStmt (Ret expr) = do
   val <- evalExpr expr
