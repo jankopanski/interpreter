@@ -120,13 +120,24 @@ typeOfStmt token@(Ass (Ident name) expr) = do
       Right t' -> if t == t' then emptyStmt else failStmt token
       Left err -> return $ Left err
 
-typeOfStmt token@(Incr (Ident name)) = isExprInt token name
+typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 
-typeOfStmt token@(Decr (Ident name)) = isExprInt token name
+typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
 
 typeOfStmt token@(Cond expr _) = isExprBool token expr
 
 typeOfStmt token@(CondElse expr _ _) = isExprBool token expr
+
+typeOfStmt token@(While expr _) = do
+  et <- typeOfExpr expr
+  case et of
+    Left err -> return $ Left err
+    Right Bool -> emptyStmt
+    _ -> failStmt token
+
+typeOfStmt token@(ForUp _ expr1 expr2 _) = isExprInt token expr1 >> isExprInt token expr2
+
+typeOfStmt token@(ForDown _ expr1 expr2 _) = isExprInt token expr1 >> isExprInt token expr2
 
 typeOfStmt (Ret expr) = do
   exprtype <- typeOfExpr expr
@@ -142,12 +153,20 @@ typeOfStmt (SExp expr) = do
   _ <- typeOfExpr expr
   emptyStmt
 
-isExprInt :: Stmt -> Name -> TypeChecker
-isExprInt token name = do
+isIdentInt :: Stmt -> Name -> TypeChecker
+isIdentInt token name = do
   (env, _) <- get
   case Map.lookup name env of
     Nothing -> failStmt token
     Just t -> if t == Int then emptyStmt else failStmt token
+
+isExprInt :: Stmt -> Expr -> TypeChecker
+isExprInt token expr = do
+  et <- typeOfExpr expr
+  case et of
+    Left err -> return $ Left err
+    Right Int -> emptyStmt
+    _ -> failStmt token
 
 isExprBool :: Stmt -> Expr -> TypeChecker
 isExprBool token expr = do

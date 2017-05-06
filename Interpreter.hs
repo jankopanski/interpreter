@@ -133,8 +133,62 @@ execStmt (Decr ident) = do
 execStmt (Cond expr stmt) = execStmt (CondElse expr stmt Empty)
 
 execStmt (CondElse expr stmt1 stmt2) = do
+  Scope inenv outenv infenv outfenv _ _ <- get
   VBool b <- evalExpr expr
   if b then execStmt stmt1 else execStmt stmt2
+  modify (\(Scope _ _ _ _ store' ret') -> Scope inenv outenv infenv outfenv store' ret')
+
+execStmt token@(While expr stmt) = do
+  Scope inenv outenv infenv outfenv _ _ <- get
+  VBool b <- evalExpr expr
+  when b $ do
+    execStmt stmt
+    modify (\(Scope _ _ _ _ store' ret') -> Scope inenv outenv infenv outfenv store' ret')
+    execStmt token
+
+execStmt (ForUp (Ident name) expr1 expr2 stmt) = do
+  val@(VInt n1) <- evalExpr expr1
+  VInt n2 <- evalExpr expr2
+  Scope inenv outenv infenv outfenv store ret <- get
+  let store'@(_, loc) = insertStore val store
+      inenv' = Map.insert name loc inenv
+  put (Scope inenv' outenv infenv outfenv store' ret)
+  iterateUp n1 n2 loc
+  modify (\(Scope _ _ _ _ store'' ret') -> Scope inenv outenv infenv outfenv store'' ret')
+    where
+      iterateUp :: Integer -> Integer -> Loc -> Interpreter
+      iterateUp n1 n2 loc
+        | n1 > n2 = return ()
+        | n1 <= n2 = do
+          Scope inenv outenv infenv outfenv _ _ <- get
+          execStmt stmt
+          Scope _ _ _ _ store' ret' <- get
+          let n1' = n1 + 1
+              store'' = updateStore loc (VInt n1') store'
+          put (Scope inenv outenv infenv outfenv store'' ret')
+          iterateUp n1' n2 loc
+
+execStmt (ForDown (Ident name) expr1 expr2 stmt) = do
+  val@(VInt n1) <- evalExpr expr1
+  VInt n2 <- evalExpr expr2
+  Scope inenv outenv infenv outfenv store ret <- get
+  let store'@(_, loc) = insertStore val store
+      inenv' = Map.insert name loc inenv
+  put (Scope inenv' outenv infenv outfenv store' ret)
+  iterateDown n1 n2 loc
+  modify (\(Scope _ _ _ _ store'' ret') -> Scope inenv outenv infenv outfenv store'' ret')
+    where
+      iterateDown :: Integer -> Integer -> Loc -> Interpreter
+      iterateDown n1 n2 loc
+        | n1 < n2 = return ()
+        | n1 >= n2 = do
+          Scope inenv outenv infenv outfenv _ _ <- get
+          execStmt stmt
+          Scope _ _ _ _ store' ret' <- get
+          let n1' = n1 - 1
+              store'' = updateStore loc (VInt n1') store'
+          put (Scope inenv outenv infenv outfenv store'' ret')
+          iterateDown n1' n2 loc
 
 execStmt (Ret expr) = do
   val <- evalExpr expr
