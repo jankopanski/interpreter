@@ -11,6 +11,9 @@ import qualified Data.Map as Map
 import AbsMacchiato
 
 
+import Debug.Trace
+debug = flip trace
+
 type Name = String
 type TypeEnv = Map.Map Name Type
 type TypeScope = (TypeEnv, Maybe Type)
@@ -53,19 +56,20 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
       env' = Map.insert name (Fun t (map fst params)) env
       env'' = foldl (\e (argtype, argname) -> Map.insert argname argtype e) env' params
   put (env'', ret)
-  _ <- checkBlock block
+  _ <- checkBlock block `debug` show block
   (_, ret') <- get
   put (env', ret')
   let ret'' = if isNothing ret' then Just Void else ret'
-  let bmaybe = fmap (==t) ret''
+  let bmaybe = fmap (==t) ret'' --`debug` show ret''
   case bmaybe of
     Just True -> emptyStmt
     _ -> return $ Left $ show token
 
 checkBlock :: Block -> TypeChecker
 checkBlock token@(Block stmts) = do
-  scopes <- mapM (\stmt -> modify (\(env, _) -> (env, Nothing)) >> typeOfStmt stmt >> get) stmts
-  let return_types = mapMaybe snd scopes
+  scopes <- mapM (\stmt -> modify (\(env, _) -> (env, Just Int)) >> typeOfStmt stmt >> get) stmts
+  let return_types = mapMaybe snd scopes --`debug` show scopes
+  -- error $ show return_types
   case length (nub return_types) of
     0 -> emptyStmt
     1 -> do
@@ -98,6 +102,7 @@ typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
           Just rt -> rt == t
     if b then put (env', ret) >> emptyStmt else return $ Left $ show token
 
+-- TODO przypisanie nie sprawdza typu
 typeOfStmt (Decl _ []) = emptyStmt
 typeOfStmt (Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
   where
@@ -135,13 +140,33 @@ typeOfStmt token@(Cond expr stmt) = do
     Right Bool -> typeOfStmt stmt
     _ -> failStmt token
 
-typeOfStmt token@(CondElse expr stmt1 stmt2) = do
-  et <- typeOfExpr expr
-  case et of
-    Left err -> return $ Left err
-    Right Bool -> typeOfStmt stmt1 >> typeOfStmt stmt2
-    _ -> failStmt token
+-- typeOfStmt token@(CondElse expr stmt1 stmt2) = do
+--   et <- typeOfExpr expr
+--   case et of
+--     Left err -> return $ Left err
+--     Right
 
+typeOfStmt token@(CondElse expr stmt1 stmt2) = do
+  et <- typeOfExpr expr `debug` (show expr ++ " if et")
+  case et of
+    Left err -> return $ Left err `debug` err
+    -- Right Bool -> typeOfStmt stmt1 >> typeOfStmt stmt2
+    Right Bool -> do
+      (env, _) <- get
+      _ <- typeOfStmt stmt1
+      (_, ret1) <- get
+      _ <- typeOfStmt stmt2
+      (_, ret2) <- get
+      case (ret1, ret2) of
+        (Just t1, Just t2) -> if t1 == t2
+                                then put (env, ret1) >> emptyStmt
+                                else failStmt token
+        (Nothing, Just t) -> put (env, Just t) >> emptyStmt
+        (Just t, Nothing) -> put (env, Just t) >> emptyStmt
+        (Nothing, Nothing) -> put (env, Nothing) >> emptyStmt
+    _ -> failStmt token `debug` (show et ++ " if ala") -- TODO bug, dlaczego a ma value 20
+
+-- TODO przemyśleć pętle
 typeOfStmt token@(While expr _) = do
   et <- typeOfExpr expr
   case et of
@@ -149,12 +174,13 @@ typeOfStmt token@(While expr _) = do
     Right Bool -> emptyStmt
     _ -> failStmt token
 
+-- TODO pętle do poprawy
 typeOfStmt token@(ForUp _ expr1 expr2 _) = isExprInt token expr1 >> isExprInt token expr2
 
 typeOfStmt token@(ForDown _ expr1 expr2 _) = isExprInt token expr1 >> isExprInt token expr2
 
 typeOfStmt (Ret expr) = do
-  exprtype <- typeOfExpr expr
+  exprtype <- typeOfExpr expr --`debug` show expr -- TODO
   case exprtype of
     Right t -> do
       modify (\(env, _) -> (env, Just t))
@@ -221,6 +247,7 @@ typeOfExpr token@(EApp (Ident name) exprs) = do
       checkArgType acc (et, argt) = fmap (\t -> acc && t == argt) et
       lookupInbuilds :: Name -> Either String Type
       lookupInbuilds "print" = Right Void
+      -- TODO jeśli nie ma w inbuilds funkcji to zwrócić błąd
       -- lookupInbuilds _ = Left $ "Function " ++ name ++ " undefined " ++ show token
 
 typeOfExpr (EString _) = return $ Right Str
@@ -246,14 +273,23 @@ typeOfExpr token@(ERel expr1 _ expr2) = do
   t2 <- typeOfExpr expr2
   let beither = liftM2 (==) t1 t2
   case beither of
-    Right True -> case fromRight t1 of
-      Int -> return t1
-      Bool -> return t1
-      Str -> return t1
-      Tup _ -> return t1
-      _ -> return $ Left $ show token
+    Right True -> return $ Right Bool
     Right False -> return $ Left $ show token
     Left err -> return $ Left err
+
+-- typeOfExpr token@(ERel expr1 _ expr2) = do
+--   t1 <- typeOfExpr expr1
+--   t2 <- typeOfExpr expr2
+--   let beither = liftM2 (==) t1 t2
+--   case beither of
+--     Right True -> case fromRight t1 of
+--       Int -> return t1
+--       Bool -> return t1
+--       Str -> return t1
+--       Tup _ -> return t1
+--       _ -> return $ Left $ show token
+--     Right False -> return $ Left $ show token
+--     Left err -> return $ Left err
 
 typeOfExpr token@(EAnd expr1 expr2) = typeOfAndOr token expr1 expr2
 
