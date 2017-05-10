@@ -53,7 +53,6 @@ type Store = (Map.Map Loc Value, Loc)
 
 type InterpreterT = StateT Scope IO
 type Interpreter = InterpreterT ()
--- type Interpreter = StateT Scope IO ()
 
 emptyEnv :: Env
 emptyEnv = Map.empty
@@ -68,13 +67,6 @@ emptyScope :: Scope
 emptyScope = Scope emptyEnv emptyEnv emptyFEnv outerFEnv emptyStore Nothing
   where
     outerFEnv = foldl (\m f -> Map.insert (show f) f m) Map.empty [Print, IntToStr, StrToInt]
-    -- outerFEnv = Map.singleton (show Print) Print
 
 undefLoc :: Loc
 undefLoc = 0
-
--- newloc :: Store -> Loc
--- newloc store = Map.size store + 1
-
--- newloc :: Store -> Loc
--- newloc (_, n) ->
