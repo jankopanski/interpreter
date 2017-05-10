@@ -68,21 +68,32 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
 checkBlock :: Block -> TypeChecker
 checkBlock (Block stmts) = do
   (env, _) <- get
-  _ <- check stmts
+  -- res <- checkBlockStmts stmts
+  result_list <- mapM checkSingleStmt stmts
   modify (\(_, ret) -> (env, ret))
-  emptyStmt
+  let result = liftM (const ()) (sequence result_list)
+  return result
     where
-      check :: [Stmt] -> TypeChecker
-      check [] = emptyStmt
-      check (stmt:stmts') = do
+      checkSingleStmt :: Stmt -> TypeChecker
+      checkSingleStmt stmt = do
         (_, ret) <- get
-        res <- typeOfStmt stmt
-        -- error $ show (stmt, res)
-        (_, ret') <- get `debug` show res
-        case (ret, ret') of
-          (Just t1, Just t2) -> if t1 == t2 then check stmts' else failStmt stmt
-          (Just _, Nothing) -> modify (\(env, _) -> (env, ret)) >> check stmts'
-          _ -> check stmts'
+        res' <- typeOfStmt stmt
+        -- error $ show res
+        case res' of
+          Left err -> return $ Left err
+          -- Left err -> error err
+          Right () -> do
+            -- error $ show (stmt, res)
+            (_, ret') <- get `debug` show (res', ret)
+            case (ret, ret') of
+              (Just t1, Just t2) -> if t1 == t2 then return res' else failStmt stmt
+              (Just _, Nothing) -> modify (\(env, _) -> (env, ret)) >> return res'
+              (Nothing, Just _) -> modify (\(env, _) -> (env, ret')) >> return res'
+              (Nothing, Nothing) -> return res'
+      -- checkBlockStmts :: [Stmt] -> TypeChecker
+      -- checkBlockStmts [] = emptyStmt
+      -- checkBlockStmts [stmt] = checkSingleStmt stmt
+      -- checkBlockStmts (stmt:stmts') = checkSingleStmt stmt >> checkBlockStmts stmts'
 
 -- checkBlock :: Block -> TypeChecker
 -- checkBlock token@(Block stmts) = do
@@ -130,20 +141,8 @@ typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
 
 -- TODO przypisanie nie sprawdza typu
 -- typeOfStmt (Decl t [item]) = checkDecl item
--- typeOfStmt token@(Decl t (item:items)) = 
-typeOfStmt token@(Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
-  where
-    checkDecl :: Item -> TypeChecker
-    checkDecl (NoInit (Ident name)) = modify (first (Map.insert name t)) >> emptyStmt
-    checkDecl (Init (Ident name) expr) = do
-      exprtype <- typeOfExpr expr
-      let beither = fmap (==t) exprtype `debug` show (exprtype, t)
-      -- error $ show beither
-      case beither of
-        Right True -> checkDecl (NoInit (Ident name))
-        Right False -> return $ Left $ show token
-        -- Right False -> error $ show token--
-        Left err -> return $ Left err
+typeOfStmt token@(Decl t [item]) = checkDecl t item
+typeOfStmt token@(Decl t (item:items)) = checkDecl t item >> typeOfStmt (Decl t items)
 
 typeOfStmt token@(Ass (Ident name) expr) = do
   (env, _) <- get
@@ -221,6 +220,18 @@ typeOfStmt VRet = modify (\(env, _) -> (env, Just Void)) >> emptyStmt
 typeOfStmt (SExp expr) = do
   _ <- typeOfExpr expr
   emptyStmt
+
+checkDecl :: Type -> Item -> TypeChecker
+checkDecl t (NoInit (Ident name)) = modify (first (Map.insert name t)) >> emptyStmt
+checkDecl t token@(Init (Ident name) expr) = do
+  exprtype <- typeOfExpr expr
+  let beither = fmap (==t) exprtype `debug` show (exprtype, t)
+  -- error $ show beither
+  case beither of
+    Right True -> checkDecl t (NoInit (Ident name))
+    Right False -> return $ Left $ show token
+    -- Right False -> error $ show token--
+    Left err -> return $ Left err
 
 isIdentInt :: Stmt -> Name -> TypeChecker
 isIdentInt token name = do
