@@ -16,10 +16,13 @@ import Utils
 -- interpret :: Program-> IO ()
 -- interpret p = evalStateT (evalProgram p) emptyScope
 
-interpret :: Program-> IO ()
-interpret program = case typeControl program of
-  Right () -> evalStateT (evalProgram program) emptyScope
-  Left err -> print err
+-- interpret :: Program-> IO ()
+-- interpret program = case typeControl program of
+--   Right () -> evalStateT (evalProgram program) emptyScope
+--   Left err -> print err
+
+interpret :: Program -> IO ()
+interpret program = typeControl program >> evalStateT (evalProgram program) emptyScope
 
 -- TODO konwersje string int
 
