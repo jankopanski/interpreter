@@ -80,9 +80,11 @@ typeOfStmt (BStmt block) = do
 
 typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
   env <- get
-  return_maybe_type <- typeOfStmt stmt
   let arg_types = map (\(Arg arg_type _) -> arg_type) args
       env' = Map.insert name (Fun t arg_types) env
+      env'' = foldl (\e (Arg arg_type (Ident arg_name)) -> Map.insert arg_name arg_type e) env' args
+  put env''
+  return_maybe_type <- typeOfStmt stmt
   put env'
   case return_maybe_type of
     Just t' -> if t == t' then return $ Just t else error $ show token
@@ -137,7 +139,7 @@ typeOfStmt token@(ForDown (Ident name) expr1 expr2 stmt) =
   checkFor token name expr1 expr2 stmt
 
 typeOfStmt (Ret expr) = do
-  expr_type <- typeOfExpr expr --`debug` show expr -- TODO
+  expr_type <- typeOfExpr expr
   return $ Just expr_type
 
 typeOfStmt VRet = return $ Just Void
@@ -148,7 +150,7 @@ isIdentInt :: Stmt -> Name -> TypeCheckerStmt
 isIdentInt token name = do
   env <- get
   case Map.lookup name env of
-    Nothing -> error $ "Variable type not found in entvironment " ++ show token
+    Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
     Just t -> if t == Int then return Nothing else error $ show token
 
 checkFor :: Stmt -> Name -> Expr -> Expr -> Stmt -> TypeCheckerStmt
@@ -170,7 +172,7 @@ typeOfExpr token@(EVar (Ident name)) = do
   env <- get
   case Map.lookup name env of
     Just t -> return t
-    Nothing -> error $ "Variable type not found in entvironment " ++ show token
+    Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
 
 typeOfExpr (ELitInt _) = return Int
 --
