@@ -74,24 +74,19 @@ typeOfStmt Empty = return Nothing
 
 typeOfStmt (BStmt block) = do
   env <- get
-  return_type <- checkBlock block
+  return_maybe_type <- checkBlock block
   put env
-  return return_type
+  return return_maybe_type
 
--- typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
---   (env, ret) <- get
---   res <- typeOfStmt stmt
---   case res of
---     Left err -> return $ Left err
---     _ -> do
---     (_, ret') <- get
---     let argtypes = map (\(Arg argtype _) -> argtype) args
---         env' = Map.insert name (Fun t argtypes) env
---         b = case ret' of
---           Nothing -> t == Void
---           Just rt -> rt == t
---     if b then put (env', ret) >> emptyStmt else return $ Left $ show token
-
+typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
+  env <- get
+  return_maybe_type <- typeOfStmt stmt
+  let arg_types = map (\(Arg arg_type _) -> arg_type) args
+      env' = Map.insert name (Fun t arg_types) env
+  put env'
+  case return_maybe_type of
+    Just t' -> if t == t' then return $ Just t else error $ show token
+    Nothing -> if t == Void then return $ Just Void else error $ show token
 
 -- TODO przypisanie nie sprawdza typu
 typeOfStmt token@(Decl t items) = mapM_ checkDecl items >> return Nothing
@@ -115,19 +110,9 @@ typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 
 typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
 
--- -- typeOfStmt token@(Cond expr _) = isExprBool token expr
--- --
--- -- typeOfStmt token@(CondElse expr _ _) = isExprBool token expr
-
 typeOfStmt token@(Cond expr stmt) = do
   expr_type <- typeOfExpr expr
   if expr_type == Bool then typeOfStmt stmt else error $ show token
-
--- typeOfStmt token@(CondElse expr stmt1 stmt2) = do
---   et <- typeOfExpr expr
---   case et of
---     Left err -> return $ Left err
---     Right
 
 typeOfStmt token@(CondElse expr stmt1 stmt2) = do
   expr_type <- typeOfExpr expr
