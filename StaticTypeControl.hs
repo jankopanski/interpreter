@@ -111,47 +111,37 @@ typeOfStmt token@(Ass (Ident name) expr) = do
     Nothing -> error $ show token
     Just t -> if expr_type == t then return Nothing else error $ show token
 
--- typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
---
--- typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
---
+typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
+
+typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
+
 -- -- typeOfStmt token@(Cond expr _) = isExprBool token expr
 -- --
 -- -- typeOfStmt token@(CondElse expr _ _) = isExprBool token expr
---
--- typeOfStmt token@(Cond expr stmt) = do
+
+typeOfStmt token@(Cond expr stmt) = do
+  expr_type <- typeOfExpr expr
+  if expr_type == Bool then typeOfStmt stmt else error $ show token
+
+-- typeOfStmt token@(CondElse expr stmt1 stmt2) = do
 --   et <- typeOfExpr expr
 --   case et of
 --     Left err -> return $ Left err
---     Right Bool -> typeOfStmt stmt
---     _ -> failStmt token
---
--- -- typeOfStmt token@(CondElse expr stmt1 stmt2) = do
--- --   et <- typeOfExpr expr
--- --   case et of
--- --     Left err -> return $ Left err
--- --     Right
---
--- typeOfStmt token@(CondElse expr stmt1 stmt2) = do
---   et <- typeOfExpr expr `debug` (show expr ++ " if et")
---   case et of
---     Left err -> return $ Left err `debug` err
---     -- Right Bool -> typeOfStmt stmt1 >> typeOfStmt stmt2
---     Right Bool -> do
---       (env, _) <- get
---       _ <- typeOfStmt stmt1
---       (_, ret1) <- get
---       _ <- typeOfStmt stmt2
---       (_, ret2) <- get
---       case (ret1, ret2) of
---         (Just t1, Just t2) -> if t1 == t2
---                                 then put (env, ret1) >> emptyStmt
---                                 else failStmt token
---         (Nothing, Just t) -> put (env, Just t) >> emptyStmt
---         (Just t, Nothing) -> put (env, Just t) >> emptyStmt
---         (Nothing, Nothing) -> put (env, Nothing) >> emptyStmt
---     _ -> failStmt token `debug` (show et ++ " if ala") -- TODO bug, dlaczego a ma value 20
---
+--     Right
+
+typeOfStmt token@(CondElse expr stmt1 stmt2) = do
+  expr_type <- typeOfExpr expr
+  when (expr_type /= Bool) $ error $ show token
+  env <- get
+  return_type1 <- typeOfStmt stmt1
+  return_type2 <- typeOfStmt stmt2
+  put env
+  return $ case (return_type1, return_type2) of
+    (Just t1, Just t2) -> if t1 == t2 then return_type1 else error $ show token
+    (Nothing, Just _) -> return_type1
+    (Just _, Nothing) -> return_type2
+    (Nothing, Nothing) -> Nothing
+
 -- -- TODO przemyśleć pętle
 -- typeOfStmt token@(While expr _) = do
 --   et <- typeOfExpr expr
@@ -172,14 +162,14 @@ typeOfStmt (Ret expr) = do
 typeOfStmt VRet = return $ Just Void
 
 typeOfStmt (SExp expr) = typeOfExpr expr >> return Nothing
---
--- isIdentInt :: Stmt -> Name -> TypeChecker
--- isIdentInt token name = do
---   (env, _) <- get
---   case Map.lookup name env of
---     Nothing -> failStmt token
---     Just t -> if t == Int then emptyStmt else failStmt token
---
+
+isIdentInt :: Stmt -> Name -> TypeCheckerStmt
+isIdentInt token name = do
+  env <- get
+  case Map.lookup name env of
+    Nothing -> error $ "Variable type not found in entvironment " ++ show token
+    Just t -> if t == Int then return Nothing else error $ show token
+
 -- isExprInt :: Stmt -> Expr -> TypeChecker
 -- isExprInt token expr = do
 --   et <- typeOfExpr expr
@@ -198,11 +188,13 @@ typeOfStmt (SExp expr) = typeOfExpr expr >> return Nothing
 --
 -- Expressions --
 typeOfExpr :: Expr -> TypeCheckerT Type
---
--- typeOfExpr token@(EVar (Ident name)) = do
---   (env, _) <- get
---   return $ maybeToEither (show token) (Map.lookup name env)
---
+
+typeOfExpr token@(EVar (Ident name)) = do
+  env <- get
+  case Map.lookup name env of
+    Just t -> return t
+    Nothing -> error $ "Variable type not found in entvironment " ++ show token
+
 typeOfExpr (ELitInt _) = return Int
 --
 typeOfExpr ELitTrue = return Bool
@@ -225,52 +217,34 @@ typeOfExpr token@(EApp (Ident name) exprs) = do
       -- lookupInbuilds _ = Left $ "Function " ++ name ++ " undefined " ++ show token
 
 typeOfExpr (EString _) = return Str
---
--- typeOfExpr token@(Neg expr) = do
---   t <- typeOfExpr expr
---   case t of
---     Right Int -> return $ Right Int
---     _ -> return $ Left $ show token
---
--- typeOfExpr token@(Not expr) = do
---   t <- typeOfExpr expr
---   case t of
---     Right Bool -> return $ Right Bool
---     _ -> return $ Left $ show token
---
--- typeOfExpr token@(EMul expr1 _ expr2) = typeOfAddMul token expr1 expr2
---
--- typeOfExpr token@(EAdd expr1 _ expr2) = typeOfAddMul token expr1 expr2
---
--- typeOfExpr token@(ERel expr1 _ expr2) = do
---   t1 <- typeOfExpr expr1
---   t2 <- typeOfExpr expr2
---   let beither = liftM2 (==) t1 t2
---   case beither of
---     Right True -> return $ Right Bool
---     Right False -> return $ Left $ show token
---     Left err -> return $ Left err
---
--- typeOfExpr token@(EAnd expr1 expr2) = typeOfAndOr token expr1 expr2
---
--- typeOfExpr token@(EOr expr1 expr2) = typeOfAndOr token expr1 expr2
---
--- typeOfAddMul :: Expr -> Expr -> Expr -> TypeCheckerT Type
--- typeOfAddMul token expr1 expr2 = do
---   t1 <- typeOfExpr expr1
---   t2 <- typeOfExpr expr2
---   let beither = liftM2 (\t1' t2' -> t1' == Int && t2' == Int) t1 t2
---   case beither of
---     Right True -> return $ Right Int
---     Right False -> return $ Left $ show token
---     Left err -> return $ Left err
---
--- typeOfAndOr :: Expr -> Expr -> Expr -> TypeCheckerT Type
--- typeOfAndOr token expr1 expr2 = do
---   t1 <- typeOfExpr expr1
---   t2 <- typeOfExpr expr2
---   let beither = liftM2 (\t1' t2' -> t1' == Bool && t2' == Bool) t1 t2
---   case beither of
---     Right True -> return $ Right Bool
---     Right False -> return $ Left $ show token
---     Left err -> return $ Left err
+
+typeOfExpr token@(Neg expr) = typeOfExpr expr >>=
+  \t -> if t == Int then return Int else error $ show token
+
+typeOfExpr token@(Not expr) = typeOfExpr expr >>=
+  \t -> if t == Bool then return Bool else error $ show token
+
+typeOfExpr token@(EMul expr1 _ expr2) = typeOfAddMul token expr1 expr2
+
+typeOfExpr token@(EAdd expr1 _ expr2) = typeOfAddMul token expr1 expr2
+
+typeOfExpr token@(ERel expr1 _ expr2) = do
+  t1 <- typeOfExpr expr1
+  t2 <- typeOfExpr expr2
+  if t1 == t2 then return Bool else error $ show token
+
+typeOfExpr token@(EAnd expr1 expr2) = typeOfAndOr token expr1 expr2
+
+typeOfExpr token@(EOr expr1 expr2) = typeOfAndOr token expr1 expr2
+
+typeOfAddMul :: Expr -> Expr -> Expr -> TypeCheckerExpr
+typeOfAddMul token expr1 expr2 = do
+  t1 <- typeOfExpr expr1
+  t2 <- typeOfExpr expr2
+  if t1 == Int && t2 == Int then return Int else error $ show token
+
+typeOfAndOr :: Expr -> Expr -> Expr -> TypeCheckerT Type
+typeOfAndOr token expr1 expr2 = do
+  t1 <- typeOfExpr expr1
+  t2 <- typeOfExpr expr2
+  if t1 == Bool && t2 == Bool then return Bool else error $ show token
