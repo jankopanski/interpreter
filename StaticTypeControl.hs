@@ -56,8 +56,8 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
       env' = Map.insert name (Fun t (map fst params)) env
       env'' = foldl (\e (argtype, argname) -> Map.insert argname argtype e) env' params
   put (env'', ret)
-  _ <- checkBlock block `debug` show block
-  (_, ret') <- get
+  res <- checkBlock block --`debug` show block
+  (_, ret') <- get `debug` show res
   put (env', ret')
   let ret'' = if isNothing ret' then Just Void else ret'
   let bmaybe = fmap (==t) ret'' --`debug` show ret''
@@ -66,21 +66,47 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
     _ -> return $ Left $ show token
 
 checkBlock :: Block -> TypeChecker
-checkBlock token@(Block stmts) = do
-  scopes <- mapM (\stmt -> modify (\(env, _) -> (env, Just Int)) >> typeOfStmt stmt >> get) stmts
-  let return_types = mapMaybe snd scopes --`debug` show scopes
-  -- error $ show return_types
-  case length (nub return_types) of
-    0 -> emptyStmt
-    1 -> do
-      modify (\(env, _) -> (env, Just $ head return_types))
-      emptyStmt
-    _ -> return $ Left $ show token
+checkBlock (Block stmts) = do
+  (env, _) <- get
+  _ <- check stmts
+  modify (\(_, ret) -> (env, ret))
+  emptyStmt
+    where
+      check :: [Stmt] -> TypeChecker
+      check [] = emptyStmt
+      check (stmt:stmts') = do
+        (_, ret) <- get
+        res <- typeOfStmt stmt
+        -- error $ show (stmt, res)
+        (_, ret') <- get `debug` show res
+        case (ret, ret') of
+          (Just t1, Just t2) -> if t1 == t2 then check stmts' else failStmt stmt
+          (Just _, Nothing) -> modify (\(env, _) -> (env, ret)) >> check stmts'
+          _ -> check stmts'
+
+-- checkBlock :: Block -> TypeChecker
+-- checkBlock token@(Block stmts) = do
+--   scopes <- mapM (\stmt -> modify (\(env, _) -> (env, Just Int)) >> typeOfStmt stmt >> get) stmts
+--   let return_types = mapMaybe snd scopes --`debug` show scopes
+--   -- error $ show return_types
+--   case length (nub return_types) of
+--     0 -> emptyStmt
+--     1 -> do
+--       modify (\(env, _) -> (env, Just $ head return_types))
+--       emptyStmt
+--     _ -> return $ Left $ show token
 
 -- Statements --
 typeOfStmt :: Stmt -> TypeChecker
 
 typeOfStmt Empty = emptyStmt
+
+-- typeOfStmt (BStmt block) = do
+--   (env, _) <- get
+--   res <- checkBlock block
+--   case res of
+--     Left err -> return $ Left err
+--     Right () -> modify (\(_, ret) -> (env, ret)) >> emptyStmt
 
 typeOfStmt (BStmt block) = do
   (env, _) <- get
@@ -103,17 +129,20 @@ typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
     if b then put (env', ret) >> emptyStmt else return $ Left $ show token
 
 -- TODO przypisanie nie sprawdza typu
-typeOfStmt (Decl _ []) = emptyStmt
-typeOfStmt (Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
+-- typeOfStmt (Decl t [item]) = checkDecl item
+-- typeOfStmt token@(Decl t (item:items)) = 
+typeOfStmt token@(Decl t (item:items)) = checkDecl item >> typeOfStmt (Decl t items)
   where
     checkDecl :: Item -> TypeChecker
     checkDecl (NoInit (Ident name)) = modify (first (Map.insert name t)) >> emptyStmt
-    checkDecl token@(Init (Ident name) expr) = do
+    checkDecl (Init (Ident name) expr) = do
       exprtype <- typeOfExpr expr
-      let beither = fmap (==t) exprtype
+      let beither = fmap (==t) exprtype `debug` show (exprtype, t)
+      -- error $ show beither
       case beither of
         Right True -> checkDecl (NoInit (Ident name))
         Right False -> return $ Left $ show token
+        -- Right False -> error $ show token--
         Left err -> return $ Left err
 
 typeOfStmt token@(Ass (Ident name) expr) = do
