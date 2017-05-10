@@ -231,6 +231,8 @@ evalExpr (EApp (Ident name) exprs) = do
   argvalues <- mapM evalExpr exprs
   case getFunc name scope of
     Print -> lift $ inbuildPrint argvalues
+    IntToStr -> return $ intToStr $ head argvalues
+    StrToInt -> return $ strToInt $ head argvalues
     func@(Func _ argnames stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) -> do
       let outenv' = Map.union funinenv funoutenv
           -- Adding function definition to function scope for recursion

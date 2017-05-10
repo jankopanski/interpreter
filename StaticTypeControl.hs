@@ -192,6 +192,8 @@ typeOfExpr token@(EApp (Ident name) exprs) = do
     where
       lookupInbuilds :: Name -> Type
       lookupInbuilds "print" = Void
+      lookupInbuilds "intToStr" = Str
+      lookupInbuilds "strToInt" = Int
       -- TODO jeśli nie ma w inbuilds funkcji to zwrócić błąd
       -- lookupInbuilds _ = Left $ "Function " ++ name ++ " undefined " ++ show token
 
