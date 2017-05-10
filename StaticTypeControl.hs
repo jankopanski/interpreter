@@ -4,8 +4,6 @@ module StaticTypeControl where
 import Control.Monad.State.Strict
 import Data.List
 import Data.Maybe
-import Data.Either
-import Control.Arrow
 import qualified Data.Map as Map
 
 import AbsMacchiato
@@ -73,13 +71,13 @@ checkBlock token@(Block stmts) = do
 typeOfStmt :: Stmt -> TypeCheckerStmt
 
 typeOfStmt Empty = return Nothing
---
--- typeOfStmt (BStmt block) = do
---   (env, _) <- get
---   _ <- checkBlock block
---   modify (\(_, ret) -> (env, ret))
---   emptyStmt
---
+
+typeOfStmt (BStmt block) = do
+  env <- get
+  return_type <- checkBlock block
+  put env
+  return return_type
+
 -- typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
 --   (env, ret) <- get
 --   res <- typeOfStmt stmt
@@ -106,15 +104,13 @@ typeOfStmt token@(Decl t items) = mapM_ checkDecl items >> return Nothing
         then checkDecl (NoInit (Ident name))
         else error $ show token
 
--- typeOfStmt token@(Ass (Ident name) expr) = do
---   (env, _) <- get
---   et <- typeOfExpr expr
---   case Map.lookup name env of
---     Nothing -> failStmt token
---     Just t -> case et of
---       Right t' -> if t == t' then emptyStmt else failStmt token
---       Left err -> return $ Left err
---
+typeOfStmt token@(Ass (Ident name) expr) = do
+  env <- get
+  expr_type <- typeOfExpr expr
+  case Map.lookup name env of
+    Nothing -> error $ show token
+    Just t -> if expr_type == t then return Nothing else error $ show token
+
 -- typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 --
 -- typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
@@ -169,21 +165,13 @@ typeOfStmt token@(Decl t items) = mapM_ checkDecl items >> return Nothing
 --
 -- typeOfStmt token@(ForDown _ expr1 expr2 _) = isExprInt token expr1 >> isExprInt token expr2
 --
--- typeOfStmt (Ret expr) = do
---   exprtype <- typeOfExpr expr --`debug` show expr -- TODO
---   case exprtype of
---     Right t -> do
---       modify (\(env, _) -> (env, Just t))
---       emptyStmt
---     Left err -> return $ Left err
---
--- typeOfStmt VRet = modify (\(env, _) -> (env, Just Void)) >> emptyStmt
---
--- typeOfStmt (SExp expr) = do
---   _ <- typeOfExpr expr
---   emptyStmt
---
+typeOfStmt (Ret expr) = do
+  expr_type <- typeOfExpr expr --`debug` show expr -- TODO
+  return $ Just expr_type
 
+typeOfStmt VRet = return $ Just Void
+
+typeOfStmt (SExp expr) = typeOfExpr expr >> return Nothing
 --
 -- isIdentInt :: Stmt -> Name -> TypeChecker
 -- isIdentInt token name = do
@@ -220,28 +208,22 @@ typeOfExpr (ELitInt _) = return Int
 typeOfExpr ELitTrue = return Bool
 --
 typeOfExpr ELitFalse = return Bool
---
--- typeOfExpr token@(EApp (Ident name) exprs) = do
---   (env, _) <- get
---   case Map.lookup name env of
---     Nothing -> return $ lookupInbuilds name
---     -- Nothing -> return $ Left $ "Function " ++ name ++ " undefined " ++ show token
---     Just (Fun rettype argtypes) -> do
---       either_exprtypes <- mapM typeOfExpr exprs
---       let check = foldM checkArgType True (zip either_exprtypes argtypes)
---       case check of
---         Left err -> return $ Left err
---         Right True -> return $ Right rettype
---         Right False -> return $ Left $ show token
---     Just _ -> return $ Left $ "Variable " ++ name ++ " is not a function " ++ show token
---     where
---       checkArgType :: Bool -> (Either String Type, Type) -> Either String Bool
---       checkArgType acc (et, argt) = fmap (\t -> acc && t == argt) et
---       lookupInbuilds :: Name -> Either String Type
---       lookupInbuilds "print" = Right Void
---       -- TODO jeśli nie ma w inbuilds funkcji to zwrócić błąd
---       -- lookupInbuilds _ = Left $ "Function " ++ name ++ " undefined " ++ show token
---
+
+typeOfExpr token@(EApp (Ident name) exprs) = do
+  env <- get
+  case Map.lookup name env of
+    Nothing -> return $ lookupInbuilds name
+    Just (Fun return_type arg_types) -> do
+      expr_types <- mapM typeOfExpr exprs
+      let check = foldl (\b (t1, t2) -> b && t1 == t2) True (zip expr_types arg_types)
+      if check then return return_type else error $ show token
+    Just _ -> error $ "Variable " ++ name ++ " is not a function " ++ show token
+    where
+      lookupInbuilds :: Name -> Type
+      lookupInbuilds "print" = Void
+      -- TODO jeśli nie ma w inbuilds funkcji to zwrócić błąd
+      -- lookupInbuilds _ = Left $ "Function " ++ name ++ " undefined " ++ show token
+
 typeOfExpr (EString _) = return Str
 --
 -- typeOfExpr token@(Neg expr) = do
