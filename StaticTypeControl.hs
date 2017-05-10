@@ -127,19 +127,15 @@ typeOfStmt token@(CondElse expr stmt1 stmt2) = do
     (Just _, Nothing) -> return_type2
     (Nothing, Nothing) -> Nothing
 
--- -- TODO przemyśleć pętle
--- typeOfStmt token@(While expr _) = do
---   et <- typeOfExpr expr
---   case et of
---     Left err -> return $ Left err
---     Right Bool -> emptyStmt
---     _ -> failStmt token
---
--- -- TODO pętle do poprawy
--- typeOfStmt token@(ForUp _ expr1 expr2 _) = isExprInt token expr1 >> isExprInt token expr2
---
--- typeOfStmt token@(ForDown _ expr1 expr2 _) = isExprInt token expr1 >> isExprInt token expr2
---
+typeOfStmt token@(While expr stmt) = typeOfExpr expr >>=
+  \t -> if t == Bool then typeOfStmt stmt else error $ show token
+
+typeOfStmt token@(ForUp (Ident name) expr1 expr2 stmt) =
+  checkFor token name expr1 expr2 stmt
+
+typeOfStmt token@(ForDown (Ident name) expr1 expr2 stmt) =
+  checkFor token name expr1 expr2 stmt
+
 typeOfStmt (Ret expr) = do
   expr_type <- typeOfExpr expr --`debug` show expr -- TODO
   return $ Just expr_type
@@ -155,22 +151,18 @@ isIdentInt token name = do
     Nothing -> error $ "Variable type not found in entvironment " ++ show token
     Just t -> if t == Int then return Nothing else error $ show token
 
--- isExprInt :: Stmt -> Expr -> TypeChecker
--- isExprInt token expr = do
---   et <- typeOfExpr expr
---   case et of
---     Left err -> return $ Left err
---     Right Int -> emptyStmt
---     _ -> failStmt token
---
--- isExprBool :: Stmt -> Expr -> TypeChecker
--- isExprBool token expr = do
---   et <- typeOfExpr expr
---   case et of
---     Left err -> return $ Left err
---     Right Bool -> emptyStmt
---     _ -> failStmt token
---
+checkFor :: Stmt -> Name -> Expr -> Expr -> Stmt -> TypeCheckerStmt
+checkFor token name expr1 expr2 stmt = do
+  expr_type1 <- typeOfExpr expr1
+  expr_type2 <- typeOfExpr expr2
+  unless (expr_type1 == Int && expr_type2 == Int) $ error $ show token
+  env <- get
+  let env' = Map.insert name Int env
+  put env'
+  return_maybe_type <- typeOfStmt stmt
+  put env
+  return return_maybe_type
+
 -- Expressions --
 typeOfExpr :: Expr -> TypeCheckerT Type
 
