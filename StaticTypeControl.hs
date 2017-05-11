@@ -194,10 +194,36 @@ typeOfExpr token@(EApp (Ident name) exprs) = do
       lookupInbuilds "print" = Void
       lookupInbuilds "intToStr" = Str
       lookupInbuilds "strToInt" = Int
-      -- TODO jeśli nie ma w inbuilds funkcji to zwrócić błąd
-      -- lookupInbuilds _ = Left $ "Function " ++ name ++ " undefined " ++ show token
+      lookupInbuilds _ = error $ "Undefined Function '" ++ name ++ "': " ++ show token
 
 typeOfExpr (EString _) = return Str
+
+typeOfExpr token@(ENewTup exprs) = do
+  types <- mapM typeOfExpr exprs
+  let b = all isImmutable types
+  when b $ error $ show token
+  return $ Tup types
+    where
+      isImmutable :: Type -> Bool
+      isImmutable (Arr _) = False
+      isImmutable (Map _ _) = False
+      isImmutable _ = True
+
+typeOfExpr token@(EAccTup (Ident name) expr) = do
+  expr_type <- typeOfExpr expr
+  case expr_type of
+    Int -> do
+      env <- get
+      case Map.lookup name env of
+        Just tup_type -> do
+          let ELitInt n = expr
+              n_int = fromInteger n
+              Tup tup = tup_type
+          when (n_int >= length tup) $ error
+            ("Tuple index out of bound: '" ++ name ++ "': " ++ show token)
+          return $ tup !! n_int
+        Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
+    _ -> error$ show token
 
 typeOfExpr token@(Neg expr) = typeOfExpr expr >>=
   \t -> if t == Int then return Int else error $ show token

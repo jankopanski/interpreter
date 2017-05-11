@@ -14,11 +14,12 @@ import DataStructures
 --     Nothing -> error "Variable not defined"
 
 getFunc :: FName -> Scope -> Func
-getFunc name (Scope _ _ infenv outfenv _ _) = case Map.lookup name infenv of
-  Just func -> func
-  Nothing -> case Map.lookup name outfenv of
+getFunc name (Scope _ _ infenv outfenv _ _) =
+  case Map.lookup name infenv of
     Just func -> func
-    Nothing -> error "Function not defined"
+    Nothing -> case Map.lookup name outfenv of
+      Just func -> func
+      Nothing -> error $ "Undefined Function: " ++ name
 
 modifyStore :: (Store -> Store) -> Interpreter
 modifyStore f = modify (\(Scope inenv outenv infenv outfenv store ret) ->
@@ -33,5 +34,11 @@ insertStore val (s, n) = let n' = n + 1 in (Map.insert n' val s, n')
 updateStore :: Loc -> Value -> Store -> Store
 updateStore loc val (s, l) = (Map.insert loc val s, l)
 
-getValue :: Loc -> Store -> Value
-getValue loc (s, _) = s Map.! loc
+getValueByLoc :: Loc -> Store -> Value
+getValueByLoc loc (s, _) = s Map.! loc
+
+getValueByName :: Name -> Scope -> Value
+getValueByName name (Scope inenv outenv _ _ store _)
+  | Map.member name inenv = getValueByLoc (inenv Map.! name) store
+  | Map.member name outenv = getValueByLoc (outenv Map.! name) store
+  | otherwise = error $ "Undefined variable: " ++ name

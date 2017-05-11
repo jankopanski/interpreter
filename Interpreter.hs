@@ -166,7 +166,7 @@ execStmt (ForUp (Ident name) expr1 expr2 stmt) = do
           execStmt stmt
           Scope _ _ _ _ store' ret' <- get
 
-          let VInt n1' = getValue loc store'
+          let VInt n1' = getValueByLoc loc store'
               n1'' = n1' + 1
               store'' = updateStore loc (VInt n1'') store'
           put (Scope inenv outenv infenv outfenv store'' ret')
@@ -189,7 +189,7 @@ execStmt (ForDown (Ident name) expr1 expr2 stmt) = do
           Scope inenv outenv infenv outfenv _ _ <- get
           execStmt stmt
           Scope _ _ _ _ store' ret' <- get
-          let VInt n1' = getValue loc store'
+          let VInt n1' = getValueByLoc loc store'
               n1'' = n1' - 1
               store'' = updateStore loc (VInt n1'') store'
           put (Scope inenv outenv infenv outfenv store'' ret')
@@ -210,13 +210,15 @@ execStmt (SExp expr) = do
 -- Expressions --
 evalExpr :: Expr -> InterpreterT Value
 
-evalExpr (EVar (Ident name)) = do
-  Scope inenv outenv _ _ store _ <- get
-  if Map.member name inenv
-    then return $ getValue (inenv Map.! name) store
-    else if Map.member name outenv
-      then return $ getValue (outenv Map.! name) store
-      else error $ "Undefined variable: " ++ name
+evalExpr (EVar (Ident name)) = get >>= \scope -> return $ getValueByName name scope
+
+-- evalExpr (EVar (Ident name)) = do
+--   Scope inenv outenv _ _ store _ <- get
+--   if Map.member name inenv
+--     then return $ getValueByLoc (inenv Map.! name) store
+--     else if Map.member name outenv
+--       then return $ getValueByLoc (outenv Map.! name) store
+--       else error $ "Undefined variable: " ++ name
 
 evalExpr (ELitInt n) = return $ VInt n
 
@@ -254,6 +256,33 @@ evalExpr (EApp (Ident name) exprs) = do
         Nothing -> return VVoid
 
 evalExpr (EString s) = return $ VString s
+
+evalExpr (ENewTup exprs) = fmap VTup (mapM evalExpr exprs)
+
+-- evalExpr (ENewTup exprs) = do--return $ VTup $ mapM evalExpr exprs
+--   -- let sth = foldM (\l e -> evalExpr e : l) [] exprs
+--   sth <- mapM evalExpr exprs
+--   return $ VTup sth
+
+-- access
+-- evalExpr (EAccTup (Ident name) expr) = do
+--   scope@(Scope inenv outenv infenv outfenv store ret) <- get
+
+
+  -- Scope inenv outenv _ _ store _ <- get
+  -- if Map.member name inenv
+  --   then return $ getValueByLoc (inenv Map.! name) store
+  --   else if Map.member name outenv
+  --     then return $ getValueByLoc (outenv Map.! name) store
+  --     else error $ "Undefined variable: " ++ name
+
+evalExpr (EAccTup (Ident name) expr) = do
+  scope <- get
+  VInt n <- evalExpr expr
+  let n_int = fromInteger n
+      VTup tup = getValueByName name scope
+  when (n_int >= length tup) $ error ("Tuple index out of bound: " ++ name)
+  return $ tup !! n_int
 
 evalExpr (Neg expr) = do
   VInt val <- evalExpr expr
