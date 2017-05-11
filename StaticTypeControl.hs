@@ -201,7 +201,7 @@ typeOfExpr (EString _) = return Str
 typeOfExpr token@(ENewTup exprs) = do
   types <- mapM typeOfExpr exprs
   let b = all isImmutable types
-  when b $ error $ show token
+  unless b $ error $ show token
   return $ Tup types
     where
       isImmutable :: Type -> Bool

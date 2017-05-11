@@ -26,7 +26,10 @@ instance Show Value where
   show (VInt n) = show n
   show (VBool b) = let s = show b in toLower (head s) : tail s
   show (VString s) = s
-  show (VTup t) = show t
+  show (VTup t) =
+    if null t
+      then "<()>"
+      else "<(" ++ show (head t) ++ foldr (\e s -> (',' : show e) ++ s) "" (tail t) ++ ")>"
   show (VArr a) = show a
   show (VMap m) = show m
   show VVoid = error "Void type is not printable"
