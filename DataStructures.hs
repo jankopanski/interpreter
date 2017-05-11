@@ -4,7 +4,7 @@ module DataStructures where
 import Control.Monad.State
 import Data.Char(toLower)
 import qualified Data.Map as Map
-import qualified Data.Array as Array
+import qualified Data.Vector as Vector
 
 import AbsMacchiato
 
@@ -19,7 +19,7 @@ data Value =
   | VString String
   | VVoid
   | VTup [Value]
-  | VArr (Array.Array Int Value)
+  | VArr (Vector.Vector Value)
   | VMap (Map.Map Value Value)
   deriving (Eq, Ord)
 instance Show Value where

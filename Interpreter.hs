@@ -4,6 +4,7 @@ module Interpreter where
 -- import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as Map
+import qualified Data.Vector as Vector
 
 import AbsMacchiato
 
@@ -123,6 +124,39 @@ execStmt (Ass (Ident name) expr) = do
     updateOutenvValue loc val (Scope inenv outenv infenv outfenv store ret) = do
       let store' = updateStore loc val store
       put (Scope inenv outenv infenv outfenv store' ret)
+
+execStmt (ArrAss (Ident name) expr1 expr2) = do
+  scope@(Scope inenv outenv _ _ _ _) <- get
+  VInt n <- evalExpr expr1
+  val <- evalExpr expr2
+  let n_int = fromInteger n
+  case Map.lookup name inenv of
+    Just loc -> updateValue loc n_int val scope
+    Nothing -> case Map.lookup name outenv of
+      Just loc -> updateValue loc n_int val scope
+      Nothing -> error $ "Undefined variable: '" ++ name ++ "'"
+    where
+      updateValue :: Loc -> Int -> Value -> Scope -> Interpreter
+      updateValue loc n_int val (Scope inenv outenv infenv outfenv store ret) = do
+        let VArr arr = getValueByLoc loc store
+        when (n_int >= Vector.length arr) $ error ("Array index out of bound: " ++ name)
+        let arr' = arr Vector.// [(n_int, val)]
+            store' = updateStore loc (VArr arr') store
+        put (Scope inenv outenv infenv outfenv store' ret)
+
+
+    -- updateInenvValue :: Loc -> Value -> Scope -> Interpreter
+    -- updateInenvValue 0 _ _ = error $ "Undefined variable: '" ++ name ++ "'"
+    -- updateInenvValue loc val (Scope inenv outenv infenv outfenv store ret) = do
+    --   let store' = updateStore loc val store
+    --   put (Scope inenv outenv infenv outfenv store' ret)
+    -- updateOutenvValue :: Loc -> Value -> Scope -> Interpreter
+    -- updateOutenvValue 0 _ _ = error $ "Undefined variable: '" ++ name ++ "'"
+    -- updateOutenvValue loc val (Scope inenv outenv infenv outfenv store ret) = do
+    --   let store' = updateStore loc val store
+    --   put (Scope inenv outenv infenv outfenv store' ret)
+  --
+
 
 execStmt (Incr ident) = do
   VInt n <- evalExpr (EVar ident)
@@ -283,6 +317,30 @@ evalExpr (EAccTup (Ident name) expr) = do
       VTup tup = getValueByName name scope
   when (n_int >= length tup) $ error ("Tuple index out of bound: " ++ name)
   return $ tup !! n_int
+
+evalExpr token@(ENewArr t expr) = do
+  VInt n <- evalExpr expr
+  let vec = Vector.replicate (fromInteger n) (getDefValue t)
+  return $ VArr vec
+    where
+      getDefValue :: Type -> Value
+      getDefValue Int = VInt 0
+      getDefValue Str = VString ""
+      getDefValue Bool = VBool False
+      getDefValue (Tup types) = VTup $ map getDefValue types
+      getDefValue _ = error $ show token
+
+evalExpr (EAccArr (Ident name) expr) = do
+  scope <- get
+  VInt n <- evalExpr expr
+  let n_int = fromInteger n
+      VArr arr = getValueByName name scope
+  when (n_int >= Vector.length arr) $ error ("Array index out of bound: " ++ name)
+  return $ arr Vector.! n_int
+
+-- evalExpr (EAccArr (Ident name) expr) = do
+--   VInt n <- evalExpr n
+--   let
 
 evalExpr (Neg expr) = do
   VInt val <- evalExpr expr

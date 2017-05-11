@@ -201,12 +201,14 @@ typeOfExpr (EString _) = return Str
 typeOfExpr token@(ENewTup exprs) = do
   types <- mapM typeOfExpr exprs
   let b = all isImmutable types
-  unless b $ error $ show token
+  unless b $ error $ "Mutable tuple type: " ++ show token
   return $ Tup types
     where
       isImmutable :: Type -> Bool
       isImmutable (Arr _) = False
       isImmutable (Map _ _) = False
+      isImmutable (Fun _ _) = False
+      isImmutable Void = False
       isImmutable _ = True
 
 typeOfExpr token@(EAccTup (Ident name) expr) = do
