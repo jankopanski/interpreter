@@ -40,6 +40,7 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
   put env'
   let ret_type = fromMaybe Void ret
   unless (ret_type == t) $ error $ show token
+  when (name == "main" && t /= Int) $ error $ "Invalid main type:\n" ++ show token
 
 checkBlock :: Block -> TypeCheckerStmt
 checkBlock token@(Block stmts) = do

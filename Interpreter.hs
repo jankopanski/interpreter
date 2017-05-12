@@ -35,7 +35,11 @@ evalProgram (Program topdefs) = do
             in Scope inenv outenv infenv (Map.insert name func outfenv) store ret
 
 runMain :: Func -> Interpreter
-runMain (Func _ _ (BStmt block) _) = execBlock block
+runMain (Func _ _ (BStmt block) _) = do
+  execBlock block
+  Scope _ _ _ _ _ (Just (VInt n)) <- get
+  when (n /= 0) $ error "Non zero 'main' return value"
+
 
 execBlock :: Block -> Interpreter
 execBlock (Block []) = return ()
