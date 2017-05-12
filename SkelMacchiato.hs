@@ -33,6 +33,7 @@ transStmt x = case x of
   Ass ident expr -> failure x
   ArrAss ident expr1 expr2 -> failure x
   MapAss ident expr1 expr2 -> failure x
+  MapDel ident expr -> failure x
   Incr ident -> failure x
   Decr ident -> failure x
   Ret expr -> failure x
@@ -72,7 +73,6 @@ transExpr x = case x of
   ENewMap type_1 type_2 -> failure x
   EAccMap ident expr -> failure x
   EHasMap ident expr -> failure x
-  EDelMap ident expr -> failure x
   Neg expr -> failure x
   Not expr -> failure x
   EMul expr1 mulop expr2 -> failure x

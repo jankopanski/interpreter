@@ -28,6 +28,7 @@ data Stmt
     | Ass Ident Expr
     | ArrAss Ident Expr Expr
     | MapAss Ident Expr Expr
+    | MapDel Ident Expr
     | Incr Ident
     | Decr Ident
     | Ret Expr
@@ -68,7 +69,6 @@ data Expr
     | ENewMap Type Type
     | EAccMap Ident Expr
     | EHasMap Ident Expr
-    | EDelMap Ident Expr
     | Neg Expr
     | Not Expr
     | EMul Expr MulOp Expr

@@ -140,6 +140,18 @@ typeOfStmt token@(MapAss (Ident name) expr1 expr2) = do
 --       return $ if ret_bool then Bool else val_type
 --     _ -> error $ show token
 
+typeOfStmt token@(MapDel (Ident name) expr) = do
+  key_expr_type <- typeOfExpr expr
+  env <- get
+  case Map.lookup name env of
+    Just (Map _ key_type) ->
+      if key_expr_type == key_type
+        then return Nothing
+        -- else error "here"
+        -- else error $ show key_type ++ show key_expr_type
+        else error $ show token
+    _ -> error $ show token
+
 typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 
 typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
@@ -269,7 +281,7 @@ typeOfExpr token@(EAccMap (Ident name) expr) = checkMapTypes token False name ex
 
 typeOfExpr token@(EHasMap (Ident name) expr) = checkMapTypes token True name expr
 
-typeOfExpr token@(EDelMap (Ident name) expr) = checkMapTypes token False name expr
+-- typeOfExpr token@(EDelMap (Ident name) expr) = checkMapTypes token False name expr
 
 typeOfExpr token@(Neg expr) = typeOfExpr expr >>=
   \t -> if t == Int then return Int else error $ show token
