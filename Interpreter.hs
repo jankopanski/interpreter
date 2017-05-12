@@ -144,6 +144,22 @@ execStmt (ArrAss (Ident name) expr1 expr2) = do
             store' = updateStore loc (VArr arr') store
         put (Scope inenv outenv infenv outfenv store' ret)
 
+execStmt (MapAss (Ident name) expr1 expr2) = do
+  scope@(Scope inenv outenv _ _ _ _) <- get
+  key <- evalExpr expr1
+  val <- evalExpr expr2
+  case Map.lookup name inenv of
+    Just loc -> updateValue loc key val scope
+    Nothing -> case Map.lookup name outenv of
+      Just loc -> updateValue loc key val scope
+      Nothing -> error $ "Undefined variable: '" ++ name ++ "'"
+    where
+      updateValue :: Loc -> Value -> Value -> Scope -> Interpreter
+      updateValue loc key val (Scope inenv outenv infenv outfenv store ret) = do
+        let VMap m = getValueByLoc loc store
+        let m' = Map.insert key val m
+            store' = updateStore loc (VMap m') store
+        put (Scope inenv outenv infenv outfenv store' ret)
 
     -- updateInenvValue :: Loc -> Value -> Scope -> Interpreter
     -- updateInenvValue 0 _ _ = error $ "Undefined variable: '" ++ name ++ "'"
@@ -337,6 +353,51 @@ evalExpr (EAccArr (Ident name) expr) = do
       VArr arr = getValueByName name scope
   when (n_int >= Vector.length arr) $ error ("Array index out of bound: " ++ name)
   return $ arr Vector.! n_int
+
+evalExpr (ENewMap _ _) = return $ VMap Map.empty
+
+evalExpr (EAccMap (Ident name) expr) = do
+  key <- evalExpr expr
+  scope <- get
+  let VMap m = getValueByName name scope
+  case Map.lookup key m of
+    Nothing -> error ("No entry for key '" ++ show key ++ "' in map '" ++ name ++ "'")
+    Just value -> return value
+
+evalExpr (EHasMap (Ident name) expr) = do
+  key <- evalExpr expr
+  scope <- get
+  let VMap m = getValueByName name scope
+  return $ VBool $ Map.member key m
+
+-- TODO del
+  -- evalExpr (EDelMap (Ident name) expr) = do
+  --   key <- evalExpr expr
+  --   scope@(Scope inenv outenv infenv outfenv store ret) <- get
+
+evalExpr (EDelMap (Ident name) expr) = do
+  scope@(Scope inenv outenv _ _ _ _) <- get
+  key <- evalExpr expr
+  case Map.lookup name inenv of
+    Just loc -> deleteEntry loc key scope
+    Nothing -> case Map.lookup name outenv of
+      Just loc -> deleteEntry loc key scope
+      Nothing -> error $ "Undefined variable: '" ++ name ++ "'"
+    where
+      deleteEntry :: Loc -> Value -> Scope -> InterpreterT Value
+      deleteEntry loc key (Scope inenv outenv infenv outfenv store ret) = do
+        let VMap m = getValueByLoc loc store
+        unless (Map.member key m) $ error ("No entry for key '" ++ show key ++ "' in map '" ++ name ++ "'")
+        let val = m Map.! key
+            m' = Map.delete key m
+            store' = updateStore loc (VMap m') store
+        put (Scope inenv outenv infenv outfenv store' ret)
+        return val
+
+    -- let VMap m = getValueByName name scope
+    -- case Map.lookup key m of
+    --   Nothing -> error ("No entry for key '" ++ show key ++ "' in map '" ++ name ++ "'")
+    --   Just value -> return value
 
 -- evalExpr (EAccArr (Ident name) expr) = do
 --   VInt n <- evalExpr n

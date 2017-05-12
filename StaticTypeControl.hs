@@ -110,13 +110,32 @@ typeOfStmt token@(Ass (Ident name) expr) = do
 
 typeOfStmt token@(ArrAss (Ident name) expr1 expr2) = do
   index_type <- typeOfExpr expr1
-  value_type <- typeOfExpr expr2
+  val_type <- typeOfExpr expr2
   unless (index_type == Int) $ error $ show token
   env <- get
   case Map.lookup name env of
     Just (Arr arr_type) ->
-      if value_type == arr_type then return Nothing else error $ show token
+      if val_type == arr_type then return Nothing else error $ show token
     _ -> error $ show token
+
+typeOfStmt token@(MapAss (Ident name) expr1 expr2) = do
+  key_expr_type <- typeOfExpr expr1
+  val_expr_type <- typeOfExpr expr2
+  env <- get
+  case Map.lookup name env of
+    Just (Map key_type val_type) ->
+      if key_expr_type == key_type && val_expr_type == val_type
+        then return Nothing
+        else error $ show token
+    _ -> error $ show token
+-- checkMapTypes token ret_bool name expr = do
+--   expr_type <- typeOfExpr expr
+--   env <- get
+--   case Map.lookup name env of
+--     Just (Map key_type val_type) -> do
+--       unless (expr_type == key_type) $ error $ show token
+--       return $ if ret_bool then Bool else val_type
+--     _ -> error $ show token
 
 typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 
@@ -240,6 +259,15 @@ typeOfExpr token@(EAccArr (Ident name) expr) = do
     Just (Arr arr_type) -> return arr_type
     _ -> error $ show token
 
+typeOfExpr token@(ENewMap t1 t2) =
+  if isImmutable t1 then return $ Map t1 t2 else error $ show token
+
+typeOfExpr token@(EAccMap (Ident name) expr) = checkMapTypes token False name expr
+
+typeOfExpr token@(EHasMap (Ident name) expr) = checkMapTypes token True name expr
+
+typeOfExpr token@(EDelMap (Ident name) expr) = checkMapTypes token False name expr
+
 typeOfExpr token@(Neg expr) = typeOfExpr expr >>=
   \t -> if t == Int then return Int else error $ show token
 
@@ -265,11 +293,21 @@ typeOfAddMul token expr1 expr2 = do
   t2 <- typeOfExpr expr2
   if t1 == Int && t2 == Int then return Int else error $ show token
 
-typeOfAndOr :: Expr -> Expr -> Expr -> TypeCheckerT Type
+typeOfAndOr :: Expr -> Expr -> Expr -> TypeCheckerT Type -- TODO ?
 typeOfAndOr token expr1 expr2 = do
   t1 <- typeOfExpr expr1
   t2 <- typeOfExpr expr2
   if t1 == Bool && t2 == Bool then return Bool else error $ show token
+
+checkMapTypes :: Expr -> Bool -> Name -> Expr -> TypeCheckerExpr
+checkMapTypes token ret_bool name expr = do
+  expr_type <- typeOfExpr expr
+  env <- get
+  case Map.lookup name env of
+    Just (Map key_type val_type) -> do
+      unless (expr_type == key_type) $ error $ show token
+      return $ if ret_bool then Bool else val_type
+    _ -> error $ show token
 
 isImmutable :: Type -> Bool
 isImmutable (Arr _) = False
