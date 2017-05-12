@@ -108,6 +108,16 @@ typeOfStmt token@(Ass (Ident name) expr) = do
     Nothing -> error $ show token
     Just t -> if expr_type == t then return Nothing else error $ show token
 
+typeOfStmt token@(ArrAss (Ident name) expr1 expr2) = do
+  index_type <- typeOfExpr expr1
+  value_type <- typeOfExpr expr2
+  unless (index_type == Int) $ error $ show token
+  env <- get
+  case Map.lookup name env of
+    Just (Arr arr_type) ->
+      if value_type == arr_type then return Nothing else error $ show token
+    _ -> error $ show token
+
 typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 
 typeOfStmt token@(Decr (Ident name)) = isIdentInt token name
@@ -203,29 +213,31 @@ typeOfExpr token@(ENewTup exprs) = do
   let b = all isImmutable types
   unless b $ error $ "Mutable tuple type: " ++ show token
   return $ Tup types
-    where
-      isImmutable :: Type -> Bool
-      isImmutable (Arr _) = False
-      isImmutable (Map _ _) = False
-      isImmutable (Fun _ _) = False
-      isImmutable Void = False
-      isImmutable _ = True
 
 typeOfExpr token@(EAccTup (Ident name) expr) = do
   expr_type <- typeOfExpr expr
-  case expr_type of
-    Int -> do
-      env <- get
-      case Map.lookup name env of
-        Just tup_type -> do
-          let ELitInt n = expr
-              n_int = fromInteger n
-              Tup tup = tup_type
-          when (n_int >= length tup) $ error
-            ("Tuple index out of bound: '" ++ name ++ "': " ++ show token)
-          return $ tup !! n_int
-        Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
-    _ -> error$ show token
+  unless (expr_type == Int) $ error $ show token
+  env <- get
+  case Map.lookup name env of
+    Just (Tup tup_type) -> do
+      let ELitInt n = expr -- TODO to jest bug, expr to nie musi być int
+          n_int = fromInteger n
+      when (n_int >= length tup_type) $ error
+        ("Tuple index out of bound: '" ++ name ++ "': " ++ show token)
+      return $ tup_type !! n_int
+    _ -> error $ show token
+    -- Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
+
+typeOfExpr token@(ENewArr t expr) = typeOfExpr expr >>= \expr_type ->
+  if expr_type == Int && isImmutable t then return $ Arr t else error $ show token
+
+typeOfExpr token@(EAccArr (Ident name) expr) = do
+  expr_type <- typeOfExpr expr
+  unless (expr_type == Int) $ error $ show token
+  env <- get
+  case Map.lookup name env of
+    Just (Arr arr_type) -> return arr_type
+    _ -> error $ show token
 
 typeOfExpr token@(Neg expr) = typeOfExpr expr >>=
   \t -> if t == Int then return Int else error $ show token
@@ -257,3 +269,10 @@ typeOfAndOr token expr1 expr2 = do
   t1 <- typeOfExpr expr1
   t2 <- typeOfExpr expr2
   if t1 == Bool && t2 == Bool then return Bool else error $ show token
+
+isImmutable :: Type -> Bool
+isImmutable (Arr _) = False
+isImmutable (Map _ _) = False
+isImmutable (Fun _ _) = False
+isImmutable Void = False
+isImmutable _ = True
