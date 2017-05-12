@@ -80,11 +80,14 @@ typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
 typeOfStmt token@(Decl t items) = mapM_ checkDecl items >> return Nothing
   where
     checkDecl :: Item -> TypeCheckerStmt
-    checkDecl (NoInit (Ident name)) = modify (Map.insert name t) >> return Nothing
+    checkDecl (NoInit (Ident name)) =
+      if t == Void
+        then error $ show token
+        else modify (Map.insert name t) >> return Nothing
     checkDecl (Init (Ident name) expr) = do
       expr_type <- typeOfExpr expr
-      if expr_type == t
-        then checkDecl (NoInit (Ident name))
+      if expr_type == t && t /= Void
+        then modify (Map.insert name t) >> return Nothing
         else error $ show token
 
 typeOfStmt token@(Ass (Ident name) expr) = do
@@ -201,6 +204,8 @@ typeOfExpr token@(EApp (Ident name) exprs) = do
   case Map.lookup name env of
     Nothing -> return $ lookupInbuilds name expr_types
     Just (Fun return_type arg_types) -> do
+      unless (length arg_types == length expr_types) $ error
+        ("Invalid number of arguments in function call:\n" ++ show token)
       let check = foldl (\b (t1, t2) -> b && t1 == t2) True (zip expr_types arg_types)
       if check then return return_type else error $ show token
     Just _ -> error $ "Variable '" ++ name ++ "' is not a function:\n" ++ show token
