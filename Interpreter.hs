@@ -1,7 +1,6 @@
 module Interpreter where
 
 
--- import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as Map
 import qualified Data.Vector as Vector
@@ -14,18 +13,8 @@ import InbuildFunctions
 import Utils
 
 
--- interpret :: Program-> IO ()
--- interpret p = evalStateT (evalProgram p) emptyScope
-
--- interpret :: Program-> IO ()
--- interpret program = case typeControl program of
---   Right () -> evalStateT (evalProgram program) emptyScope
---   Left err -> print err
-
 interpret :: Program -> IO ()
 interpret program = typeControl program >> evalStateT (evalProgram program) emptyScope
-
--- TODO konwersje string int
 
 evalProgram :: Program -> Interpreter
 evalProgram (Program topdefs) = do
@@ -47,9 +36,6 @@ evalProgram (Program topdefs) = do
 
 runMain :: Func -> Interpreter
 runMain (Func _ _ (BStmt block) _) = execBlock block
--- runMain (Func _ _ _ (BStmt block) _) = get >>= lift . print >> execBlock block
--- dodać argsy ?
--- sprawdzić ret
 
 execBlock :: Block -> Interpreter
 execBlock (Block []) = return ()
@@ -177,19 +163,6 @@ execStmt (MapDel (Ident name) expr) = do
             store' = updateStore loc (VMap m') store
         put (Scope inenv outenv infenv outfenv store' ret)
 
-    -- updateInenvValue :: Loc -> Value -> Scope -> Interpreter
-    -- updateInenvValue 0 _ _ = error $ "Undefined variable: '" ++ name ++ "'"
-    -- updateInenvValue loc val (Scope inenv outenv infenv outfenv store ret) = do
-    --   let store' = updateStore loc val store
-    --   put (Scope inenv outenv infenv outfenv store' ret)
-    -- updateOutenvValue :: Loc -> Value -> Scope -> Interpreter
-    -- updateOutenvValue 0 _ _ = error $ "Undefined variable: '" ++ name ++ "'"
-    -- updateOutenvValue loc val (Scope inenv outenv infenv outfenv store ret) = do
-    --   let store' = updateStore loc val store
-    --   put (Scope inenv outenv infenv outfenv store' ret)
-  --
-
-
 execStmt (Incr ident) = do
   VInt n <- evalExpr (EVar ident)
   execStmt (Ass ident (ELitInt (n + 1)))
@@ -278,14 +251,6 @@ evalExpr :: Expr -> InterpreterT Value
 
 evalExpr (EVar (Ident name)) = get >>= \scope -> return $ getValueByName name scope
 
--- evalExpr (EVar (Ident name)) = do
---   Scope inenv outenv _ _ store _ <- get
---   if Map.member name inenv
---     then return $ getValueByLoc (inenv Map.! name) store
---     else if Map.member name outenv
---       then return $ getValueByLoc (outenv Map.! name) store
---       else error $ "Undefined variable: " ++ name
-
 evalExpr (ELitInt n) = return $ VInt n
 
 evalExpr ELitTrue = return $ VBool True
@@ -294,8 +259,6 @@ evalExpr ELitFalse = return $ VBool False
 
 evalExpr (EApp (Ident name) exprs) = do
   scope@(Scope inenv outenv infenv outfenv store _) <- get
-  -- when (Map.member infenv || Map.member outenv) $ error ("Invalid number of arguments")
-  --sprawdzanie liczby argumentów przy typach
   argvalues <- mapM evalExpr exprs
   case getFunc name scope of
     Print -> lift $ inbuildPrint argvalues
@@ -325,26 +288,8 @@ evalExpr (EString s) = return $ VString s
 
 evalExpr (ENewTup exprs) = fmap VTup (mapM evalExpr exprs)
 
--- evalExpr (ENewTup exprs) = do--return $ VTup $ mapM evalExpr exprs
---   -- let sth = foldM (\l e -> evalExpr e : l) [] exprs
---   sth <- mapM evalExpr exprs
---   return $ VTup sth
-
--- access
--- evalExpr (EAccTup (Ident name) expr) = do
---   scope@(Scope inenv outenv infenv outfenv store ret) <- get
-
-
-  -- Scope inenv outenv _ _ store _ <- get
-  -- if Map.member name inenv
-  --   then return $ getValueByLoc (inenv Map.! name) store
-  --   else if Map.member name outenv
-  --     then return $ getValueByLoc (outenv Map.! name) store
-  --     else error $ "Undefined variable: " ++ name
-
 evalExpr (EAccTup (Ident name) n) = do
   scope <- get
-  -- VInt n <- evalExpr expr
   let n_int = fromInteger n
       VTup tup = getValueByName name scope
   when (n_int >= length tup) $ error ("Tuple index out of bound: " ++ name)
@@ -385,40 +330,6 @@ evalExpr (EHasMap (Ident name) expr) = do
   scope <- get
   let VMap m = getValueByName name scope
   return $ VBool $ Map.member key m
-
--- TODO del
-  -- evalExpr (EDelMap (Ident name) expr) = do
-  --   key <- evalExpr expr
-  --   scope@(Scope inenv outenv infenv outfenv store ret) <- get
-
--- evalExpr (EDelMap (Ident name) expr) = do
---   scope@(Scope inenv outenv _ _ _ _) <- get
---   key <- evalExpr expr
---   case Map.lookup name inenv of
---     Just loc -> deleteEntry loc key scope
---     Nothing -> case Map.lookup name outenv of
---       Just loc -> deleteEntry loc key scope
---       Nothing -> error $ "Undefined variable: '" ++ name ++ "'"
---     where
---       deleteEntry :: Loc -> Value -> Scope -> InterpreterT Value
---       deleteEntry loc key (Scope inenv outenv infenv outfenv store ret) = do
---         let VMap m = getValueByLoc loc store
---         unless (Map.member key m) $ error ("No entry for key '" ++ show key ++ "' in map '" ++ name ++ "'")
---         let val = m Map.! key
---             m' = Map.delete key m
---             store' = updateStore loc (VMap m') store
---         error $ show store'
---         put (Scope inenv outenv infenv outfenv store' ret)
---         return val
-
-    -- let VMap m = getValueByName name scope
-    -- case Map.lookup key m of
-    --   Nothing -> error ("No entry for key '" ++ show key ++ "' in map '" ++ name ++ "'")
-    --   Just value -> return value
-
--- evalExpr (EAccArr (Ident name) expr) = do
---   VInt n <- evalExpr n
---   let
 
 evalExpr (Neg expr) = do
   VInt val <- evalExpr expr

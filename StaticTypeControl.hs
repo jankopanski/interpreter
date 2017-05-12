@@ -9,9 +9,6 @@ import qualified Data.Map as Map
 import AbsMacchiato
 
 
-import Debug.Trace
-debug = flip trace
-
 type Name = String
 type TypeEnv = Map.Map Name Type
 type TypeScope = TypeEnv
@@ -20,7 +17,7 @@ type TypeCheckerExpr = TypeCheckerT Type -- type of expression
 type TypeCheckerStmt = TypeCheckerT (Maybe Type) -- type function application return
 
 emptyTypeEnv :: TypeEnv
-emptyTypeEnv = Map.empty -- Ręczna obsługa funkcji wbudowanych
+emptyTypeEnv = Map.empty
 
 emptyTypeScope :: TypeScope
 emptyTypeScope = emptyTypeEnv
@@ -50,7 +47,7 @@ checkTopDef token@(FnDef t (Ident name) args block) = do
       env'' = foldl (\e (argtype, argname) -> Map.insert argname argtype e) env' params
       -- env'' with function definition and parameters
   put env''
-  ret <- checkBlock block --`debug` show block
+  ret <- checkBlock block
   put env'
   let ret_type = fromMaybe Void ret
   unless (ret_type == t) $ error $ show token
@@ -90,7 +87,6 @@ typeOfStmt token@(FunLoc t (Ident name) args stmt) = do
     Just t' -> if t == t' then return $ Just t else error $ show token
     Nothing -> if t == Void then return $ Just Void else error $ show token
 
--- TODO przypisanie nie sprawdza typu
 typeOfStmt token@(Decl t items) = mapM_ checkDecl items >> return Nothing
   where
     checkDecl :: Item -> TypeCheckerStmt
@@ -122,34 +118,19 @@ typeOfStmt token@(MapAss (Ident name) expr1 expr2) = do
   key_expr_type <- typeOfExpr expr1
   val_expr_type <- typeOfExpr expr2
   env <- get
-  -- error $ show key_expr_type ++ show val_expr_type
   case Map.lookup name env of
     Just (Map val_type key_type) ->
       if key_expr_type == key_type && val_expr_type == val_type
         then return Nothing
-        -- else error "here"
-        -- else error $ show key_type ++ show val_type ++ show key_expr_type ++ show val_expr_type
         else error $ show token
     _ -> error $ show token
--- checkMapTypes token ret_bool name expr = do
---   expr_type <- typeOfExpr expr
---   env <- get
---   case Map.lookup name env of
---     Just (Map key_type val_type) -> do
---       unless (expr_type == key_type) $ error $ show token
---       return $ if ret_bool then Bool else val_type
---     _ -> error $ show token
 
 typeOfStmt token@(MapDel (Ident name) expr) = do
   key_expr_type <- typeOfExpr expr
   env <- get
   case Map.lookup name env of
     Just (Map _ key_type) ->
-      if key_expr_type == key_type
-        then return Nothing
-        -- else error "here"
-        -- else error $ show key_type ++ show key_expr_type
-        else error $ show token
+      if key_expr_type == key_type then return Nothing else error $ show token
     _ -> error $ show token
 
 typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
@@ -249,19 +230,14 @@ typeOfExpr token@(ENewTup exprs) = do
   return $ Tup types
 
 typeOfExpr token@(EAccTup (Ident name) n) = do
-  -- expr_type <- typeOfExpr expr
-  -- unless (expr_type == Int) $ error $ show token
   let n_int = fromInteger n
   env <- get
   case Map.lookup name env of
     Just (Tup tup_type) -> do
-      -- let ELitInt n = expr -- TODO to jest bug, expr to nie musi być int
-      --     n_int = fromInteger n
       when (n_int >= length tup_type) $ error
         ("Tuple index out of bound: '" ++ name ++ "': " ++ show token)
       return $ tup_type !! n_int
     _ -> error $ show token
-    -- Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
 
 typeOfExpr token@(ENewArr t expr) = typeOfExpr expr >>= \expr_type ->
   if expr_type == Int && isImmutable t then return $ Arr t else error $ show token
@@ -280,8 +256,6 @@ typeOfExpr token@(ENewMap val_type key_type) =
 typeOfExpr token@(EAccMap (Ident name) expr) = checkMapTypes token False name expr
 
 typeOfExpr token@(EHasMap (Ident name) expr) = checkMapTypes token True name expr
-
--- typeOfExpr token@(EDelMap (Ident name) expr) = checkMapTypes token False name expr
 
 typeOfExpr token@(Neg expr) = typeOfExpr expr >>=
   \t -> if t == Int then return Int else error $ show token

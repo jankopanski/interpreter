@@ -6,12 +6,6 @@ import qualified Data.Map as Map
 
 import DataStructures
 
--- getVar :: Name -> Scope -> Value
--- getVar name (Scope inenv outenv _ _ _) = case Map.lookup name inenv of
---   Just var -> var
---   Nothing -> case Map.lookup name outenv of
---     Just var -> var
---     Nothing -> error "Variable not defined"
 
 getFunc :: FName -> Scope -> Func
 getFunc name (Scope _ _ infenv outfenv _ _) =
@@ -25,8 +19,6 @@ modifyStore :: (Store -> Store) -> Interpreter
 modifyStore f = modify (\(Scope inenv outenv infenv outfenv store ret) ->
   (Scope inenv outenv infenv outfenv (f store) ret))
 
--- insertStore :: Store -> (Store, Loc)
--- insertStore (s, n) = let n' = n + 1 in ((s, n'), n')
 
 insertStore :: Value -> Store -> Store
 insertStore val (s, n) = let n' = n + 1 in (Map.insert n' val s, n')
