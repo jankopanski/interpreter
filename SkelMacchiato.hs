@@ -66,7 +66,7 @@ transExpr x = case x of
   EApp ident exprs -> failure x
   EString string -> failure x
   ENewTup exprs -> failure x
-  EAccTup ident expr -> failure x
+  EAccTup ident integer -> failure x
   ENewArr type_ expr -> failure x
   EAccArr ident expr -> failure x
   ENewMap type_1 type_2 -> failure x

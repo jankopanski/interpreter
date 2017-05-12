@@ -62,7 +62,7 @@ data Expr
     | EApp Ident [Expr]
     | EString String
     | ENewTup [Expr]
-    | EAccTup Ident Expr
+    | EAccTup Ident Integer
     | ENewArr Type Expr
     | EAccArr Ident Expr
     | ENewMap Type Type

@@ -214,14 +214,15 @@ typeOfExpr token@(ENewTup exprs) = do
   unless b $ error $ "Mutable tuple type: " ++ show token
   return $ Tup types
 
-typeOfExpr token@(EAccTup (Ident name) expr) = do
-  expr_type <- typeOfExpr expr
-  unless (expr_type == Int) $ error $ show token
+typeOfExpr token@(EAccTup (Ident name) n) = do
+  -- expr_type <- typeOfExpr expr
+  -- unless (expr_type == Int) $ error $ show token
+  let n_int = fromInteger n
   env <- get
   case Map.lookup name env of
     Just (Tup tup_type) -> do
-      let ELitInt n = expr -- TODO to jest bug, expr to nie musi być int
-          n_int = fromInteger n
+      -- let ELitInt n = expr -- TODO to jest bug, expr to nie musi być int
+      --     n_int = fromInteger n
       when (n_int >= length tup_type) $ error
         ("Tuple index out of bound: '" ++ name ++ "': " ++ show token)
       return $ tup_type !! n_int

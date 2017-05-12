@@ -310,9 +310,9 @@ evalExpr (ENewTup exprs) = fmap VTup (mapM evalExpr exprs)
   --     then return $ getValueByLoc (outenv Map.! name) store
   --     else error $ "Undefined variable: " ++ name
 
-evalExpr (EAccTup (Ident name) expr) = do
+evalExpr (EAccTup (Ident name) n) = do
   scope <- get
-  VInt n <- evalExpr expr
+  -- VInt n <- evalExpr expr
   let n_int = fromInteger n
       VTup tup = getValueByName name scope
   when (n_int >= length tup) $ error ("Tuple index out of bound: " ++ name)

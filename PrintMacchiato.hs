@@ -151,7 +151,7 @@ instance Print Expr where
     EApp id exprs -> prPrec i 6 (concatD [prt 0 id, doc (showString "("), prt 0 exprs, doc (showString ")")])
     EString str -> prPrec i 6 (concatD [prt 0 str])
     ENewTup exprs -> prPrec i 6 (concatD [doc (showString "<("), prt 0 exprs, doc (showString ")>")])
-    EAccTup id expr -> prPrec i 6 (concatD [prt 0 id, doc (showString "<("), prt 0 expr, doc (showString ")>")])
+    EAccTup id n -> prPrec i 6 (concatD [prt 0 id, doc (showString "<("), prt 0 n, doc (showString ")>")])
     ENewArr type_ expr -> prPrec i 6 (concatD [doc (showString "new"), prt 0 type_, doc (showString "["), prt 0 expr, doc (showString "]")])
     EAccArr id expr -> prPrec i 6 (concatD [prt 0 id, doc (showString "["), prt 0 expr, doc (showString "]")])
     ENewMap type_1 type_2 -> prPrec i 6 (concatD [doc (showString "new"), prt 0 type_1, doc (showString "[["), prt 0 type_2, doc (showString "]]")])
