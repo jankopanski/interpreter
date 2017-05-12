@@ -25,8 +25,8 @@ run s = let ts = myLexer s in
       putStrLn s
       exitFailure
     Ok tree -> do
-      putStrLn "Parse Successful!"
-      showTree tree
+      -- putStrLn "Parse Successful!"
+      -- showTree tree
       interpret tree
       exitSuccess
 
