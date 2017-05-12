@@ -22,19 +22,8 @@ emptyTypeEnv = Map.empty
 emptyTypeScope :: TypeScope
 emptyTypeScope = emptyTypeEnv
 
-fromRight :: Either e a -> a
-fromRight (Right a) = a
-
-maybeToEither :: e -> Maybe a -> Either e a
-maybeToEither = flip maybe Right . Left
-
 typeControl :: Program -> IO ()
 typeControl program = return $! evalState (checkProgram program) emptyTypeScope
-
-banan :: Program -> IO()
-banan program = do
-  print $ evalState (checkProgram program) emptyTypeScope
-  putStrLn "banan"
 
 checkProgram :: Program -> TypeCheckerT ()
 checkProgram (Program topdefs) = mapM_ checkTopDef topdefs
@@ -101,7 +90,7 @@ typeOfStmt token@(Ass (Ident name) expr) = do
   env <- get
   expr_type <- typeOfExpr expr
   case Map.lookup name env of
-    Nothing -> error $ show token
+    Nothing -> error $ "Variable type not found in the entvironment:\n" ++ show token
     Just t -> if expr_type == t then return Nothing else error $ show token
 
 typeOfStmt token@(ArrAss (Ident name) expr1 expr2) = do
@@ -112,7 +101,7 @@ typeOfStmt token@(ArrAss (Ident name) expr1 expr2) = do
   case Map.lookup name env of
     Just (Arr arr_type) ->
       if val_type == arr_type then return Nothing else error $ show token
-    _ -> error $ show token
+    _ -> error $ "Variable type not found in the entvironment:\n" ++ show token
 
 typeOfStmt token@(MapAss (Ident name) expr1 expr2) = do
   key_expr_type <- typeOfExpr expr1
@@ -123,7 +112,7 @@ typeOfStmt token@(MapAss (Ident name) expr1 expr2) = do
       if key_expr_type == key_type && val_expr_type == val_type
         then return Nothing
         else error $ show token
-    _ -> error $ show token
+    _ -> error $ "Variable type not found in the entvironment:\n" ++ show token
 
 typeOfStmt token@(MapDel (Ident name) expr) = do
   key_expr_type <- typeOfExpr expr
@@ -131,7 +120,7 @@ typeOfStmt token@(MapDel (Ident name) expr) = do
   case Map.lookup name env of
     Just (Map _ key_type) ->
       if key_expr_type == key_type then return Nothing else error $ show token
-    _ -> error $ show token
+    _ -> error $ "Variable type not found in the entvironment:\n" ++ show token
 
 typeOfStmt token@(Incr (Ident name)) = isIdentInt token name
 
@@ -175,7 +164,7 @@ isIdentInt :: Stmt -> Name -> TypeCheckerStmt
 isIdentInt token name = do
   env <- get
   case Map.lookup name env of
-    Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
+    Nothing -> error $ "Variable type not found in the entvironment:\n" ++ show token
     Just t -> if t == Int then return Nothing else error $ show token
 
 checkFor :: Stmt -> Name -> Expr -> Expr -> Stmt -> TypeCheckerStmt
@@ -197,7 +186,7 @@ typeOfExpr token@(EVar (Ident name)) = do
   env <- get
   case Map.lookup name env of
     Just t -> return t
-    Nothing -> error $ "Variable type not found in the entvironment: " ++ show token
+    Nothing -> error $ "Variable type not found in the entvironment:\n" ++ show token
 
 typeOfExpr (ELitInt _) = return Int
 --
@@ -213,21 +202,21 @@ typeOfExpr token@(EApp (Ident name) exprs) = do
     Just (Fun return_type arg_types) -> do
       let check = foldl (\b (t1, t2) -> b && t1 == t2) True (zip expr_types arg_types)
       if check then return return_type else error $ show token
-    Just _ -> error $ "Variable " ++ name ++ " is not a function " ++ show token
+    Just _ -> error $ "Variable '" ++ name ++ "' is not a function:\n" ++ show token
     where
       lookupInbuilds :: Name -> [Type] -> Type
       lookupInbuilds "print" _ = Void
       lookupInbuilds "intToStr" [Int] = Str
       lookupInbuilds "strToInt" [Str] = Int
       lookupInbuilds "concatStr" types = if all (== Str) types then Str else error $ show token
-      lookupInbuilds _ _ = error $ "Undefined Function '" ++ name ++ "': " ++ show token
+      lookupInbuilds _ _ = error $ "Undefined Function '" ++ name ++ "':\n" ++ show token
 
 typeOfExpr (EString _) = return Str
 
 typeOfExpr token@(ENewTup exprs) = do
   types <- mapM typeOfExpr exprs
   let b = all isImmutable types
-  unless b $ error $ "Mutable tuple type: " ++ show token
+  unless b $ error $ "Invalid tuple type:\n" ++ show token
   return $ Tup types
 
 typeOfExpr token@(EAccTup (Ident name) n) = do
@@ -236,7 +225,7 @@ typeOfExpr token@(EAccTup (Ident name) n) = do
   case Map.lookup name env of
     Just (Tup tup_type) -> do
       when (n_int >= length tup_type) $ error
-        ("Tuple index out of bound: '" ++ name ++ "': " ++ show token)
+        ("Tuple index out of bound: '" ++ name ++ "':\n" ++ show token)
       return $ tup_type !! n_int
     _ -> error $ show token
 

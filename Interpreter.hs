@@ -69,15 +69,15 @@ execStmt (FunLoc _ (Ident name) args stmt) = do
   put (Scope inenv outenv infenv' outfenv store ret)
 
 execStmt (Decl _ []) = return ()
-execStmt (Decl t (item:items)) = declVar t item >> execStmt (Decl t items)
+execStmt (Decl t (item:items)) = declVar item >> execStmt (Decl t items)
   where
-    declVar :: Type -> Item -> Interpreter
-    declVar t (NoInit (Ident name)) = do
+    declVar :: Item -> Interpreter
+    declVar (NoInit (Ident name)) = do
       Scope inenv outenv infenv outfenv store ret <- get
       when (Map.member name inenv) $ error ("Redefinition of '" ++ name ++ "'")
       let inenv' = Map.insert name undefLoc inenv
       put (Scope inenv' outenv infenv outfenv store ret)
-    declVar t (Init (Ident name) expr) = do
+    declVar (Init (Ident name) expr) = do
       Scope inenv outenv infenv outfenv store ret <- get
       when (Map.member name inenv) $ error ("Redefinition of '" ++ name ++ "'")
       val <- evalExpr expr
@@ -125,7 +125,8 @@ execStmt (ArrAss (Ident name) expr1 expr2) = do
       updateValue :: Loc -> Int -> Value -> Scope -> Interpreter
       updateValue loc n_int val (Scope inenv outenv infenv outfenv store ret) = do
         let VArr arr = getValueByLoc loc store
-        when (n_int >= Vector.length arr) $ error ("Array index out of bound: " ++ name)
+        when (n_int >= Vector.length arr) $ error
+          ("Array index out of bound: '" ++ name ++ "'")
         let arr' = arr Vector.// [(n_int, val)]
             store' = updateStore loc (VArr arr') store
         put (Scope inenv outenv infenv outfenv store' ret)
@@ -293,7 +294,7 @@ evalExpr (EAccTup (Ident name) n) = do
   scope <- get
   let n_int = fromInteger n
       VTup tup = getValueByName name scope
-  when (n_int >= length tup) $ error ("Tuple index out of bound: " ++ name)
+  when (n_int >= length tup) $ error ("Tuple index out of bound: '" ++ name ++ "'")
   return $ tup !! n_int
 
 evalExpr token@(ENewArr t expr) = do
@@ -313,7 +314,8 @@ evalExpr (EAccArr (Ident name) expr) = do
   VInt n <- evalExpr expr
   let n_int = fromInteger n
       VArr arr = getValueByName name scope
-  when (n_int >= Vector.length arr) $ error ("Array index out of bound: " ++ name)
+  when (n_int >= Vector.length arr) $ error
+    ("Array index out of bound: '" ++ name ++ "'")
   return $ arr Vector.! n_int
 
 evalExpr (ENewMap _ _) = return $ VMap Map.empty
