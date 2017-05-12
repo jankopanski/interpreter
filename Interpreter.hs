@@ -391,6 +391,7 @@ evalExpr (EDelMap (Ident name) expr) = do
         let val = m Map.! key
             m' = Map.delete key m
             store' = updateStore loc (VMap m') store
+        error $ show store'
         put (Scope inenv outenv infenv outfenv store' ret)
         return val
 

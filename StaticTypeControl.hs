@@ -122,11 +122,14 @@ typeOfStmt token@(MapAss (Ident name) expr1 expr2) = do
   key_expr_type <- typeOfExpr expr1
   val_expr_type <- typeOfExpr expr2
   env <- get
+  -- error $ show key_expr_type ++ show val_expr_type
   case Map.lookup name env of
-    Just (Map key_type val_type) ->
+    Just (Map val_type key_type) ->
       if key_expr_type == key_type && val_expr_type == val_type
         then return Nothing
-        else error $ show token
+        -- else error "here"
+        else error $ show key_type ++ show val_type ++ show key_expr_type ++ show val_expr_type
+        -- else error $ show token
     _ -> error $ show token
 -- checkMapTypes token ret_bool name expr = do
 --   expr_type <- typeOfExpr expr
@@ -259,8 +262,8 @@ typeOfExpr token@(EAccArr (Ident name) expr) = do
     Just (Arr arr_type) -> return arr_type
     _ -> error $ show token
 
-typeOfExpr token@(ENewMap t1 t2) =
-  if isImmutable t1 then return $ Map t1 t2 else error $ show token
+typeOfExpr token@(ENewMap val_type key_type) =
+  if isImmutable key_type then return $ Map val_type key_type else error $ show token
 
 typeOfExpr token@(EAccMap (Ident name) expr) = checkMapTypes token False name expr
 
@@ -304,7 +307,7 @@ checkMapTypes token ret_bool name expr = do
   expr_type <- typeOfExpr expr
   env <- get
   case Map.lookup name env of
-    Just (Map key_type val_type) -> do
+    Just (Map val_type key_type) -> do
       unless (expr_type == key_type) $ error $ show token
       return $ if ret_bool then Bool else val_type
     _ -> error $ show token
