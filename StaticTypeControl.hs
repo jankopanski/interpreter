@@ -128,8 +128,8 @@ typeOfStmt token@(MapAss (Ident name) expr1 expr2) = do
       if key_expr_type == key_type && val_expr_type == val_type
         then return Nothing
         -- else error "here"
-        else error $ show key_type ++ show val_type ++ show key_expr_type ++ show val_expr_type
-        -- else error $ show token
+        -- else error $ show key_type ++ show val_type ++ show key_expr_type ++ show val_expr_type
+        else error $ show token
     _ -> error $ show token
 -- checkMapTypes token ret_bool name expr = do
 --   expr_type <- typeOfExpr expr
