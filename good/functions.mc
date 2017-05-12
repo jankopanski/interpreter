@@ -1,0 +1,43 @@
+int fun() {
+  int tr1(int y) {
+    int tr2(int y) return y + 1;
+    return tr2(y + 1);
+  }
+  return tr1(3);
+}
+
+int main() {
+  int x = 0;
+  int f1(int y) return y + 1;
+  print(f1(x));
+  int f2(int y) {
+    return y + 2;
+  }
+  print(f2(x));
+  int f3(int y) {
+    int a = 3;
+    return y + a;
+    a = 4;
+  }
+  print(f3(x));
+  int f4(int y) {
+    int x = 42;
+    return y + 4;
+  }
+  print(f4(x));
+  print(x);
+  int r1(int y) {
+    int x = y + 1;
+    int r2(int y) {
+      int x = y + 1;
+      print(x);
+      return x;
+    }
+    int z = r2(x);
+    print(x);
+    return z;
+  }
+  print(r1(x));
+  print(fun());
+  return 0;
+}
