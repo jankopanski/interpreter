@@ -34,13 +34,14 @@ instance Show Value where
   show (VMap m) = show m
   show VVoid = error "Void type is not printable"
 
-data Func = Func FName [Name] Stmt Scope | Print | IntToStr | StrToInt
+data Func = Func FName [Name] Stmt Scope | Print | IntToStr | StrToInt | ConcatStr
 instance Show Func where
   show (Func name args _ scope) =
     "Func " ++ show name ++ " " ++ show args ++ " " ++ show scope
   show Print = "print"
   show IntToStr = "intToStr"
   show StrToInt = "strToInt"
+  show ConcatStr = "concatStr"
 
 data Scope = Scope { innerEnv :: Env
                    , outerEnv :: Env
@@ -69,7 +70,8 @@ emptyStore = (Map.empty, 0)
 emptyScope :: Scope
 emptyScope = Scope emptyEnv emptyEnv emptyFEnv outerFEnv emptyStore Nothing
   where
-    outerFEnv = foldl (\m f -> Map.insert (show f) f m) Map.empty [Print, IntToStr, StrToInt]
+    outerFEnv = foldl (\m f -> Map.insert (show f) f m)
+      Map.empty [Print, IntToStr, StrToInt, ConcatStr]
 
 undefLoc :: Loc
 undefLoc = 0

@@ -264,6 +264,7 @@ evalExpr (EApp (Ident name) exprs) = do
     Print -> lift $ inbuildPrint argvalues
     IntToStr -> return $ intToStr $ head argvalues
     StrToInt -> return $ strToInt $ head argvalues
+    ConcatStr -> return $ concatStr argvalues
     func@(Func _ argnames stmt (Scope funinenv funoutenv funinfenv funoutfenv funstore _)) -> do
       let outenv' = Map.union funinenv funoutenv
           -- Adding function definition to function scope for recursion

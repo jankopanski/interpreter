@@ -206,20 +206,21 @@ typeOfExpr ELitTrue = return Bool
 typeOfExpr ELitFalse = return Bool
 
 typeOfExpr token@(EApp (Ident name) exprs) = do
+  expr_types <- mapM typeOfExpr exprs
   env <- get
   case Map.lookup name env of
-    Nothing -> return $ lookupInbuilds name
+    Nothing -> return $ lookupInbuilds name expr_types
     Just (Fun return_type arg_types) -> do
-      expr_types <- mapM typeOfExpr exprs
       let check = foldl (\b (t1, t2) -> b && t1 == t2) True (zip expr_types arg_types)
       if check then return return_type else error $ show token
     Just _ -> error $ "Variable " ++ name ++ " is not a function " ++ show token
     where
-      lookupInbuilds :: Name -> Type
-      lookupInbuilds "print" = Void
-      lookupInbuilds "intToStr" = Str
-      lookupInbuilds "strToInt" = Int
-      lookupInbuilds _ = error $ "Undefined Function '" ++ name ++ "': " ++ show token
+      lookupInbuilds :: Name -> [Type] -> Type
+      lookupInbuilds "print" _ = Void
+      lookupInbuilds "intToStr" [Int] = Str
+      lookupInbuilds "strToInt" [Str] = Int
+      lookupInbuilds "concatStr" types = if all (== Str) types then Str else error $ show token
+      lookupInbuilds _ _ = error $ "Undefined Function '" ++ name ++ "': " ++ show token
 
 typeOfExpr (EString _) = return Str
 
