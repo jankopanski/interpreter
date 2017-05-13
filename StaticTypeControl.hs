@@ -278,7 +278,7 @@ typeOfAddMul token expr1 expr2 = do
   t2 <- typeOfExpr expr2
   if t1 == Int && t2 == Int then return Int else error $ show token
 
-typeOfAndOr :: Expr -> Expr -> Expr -> TypeCheckerT Type -- TODO ?
+typeOfAndOr :: Expr -> Expr -> Expr -> TypeCheckerT Type
 typeOfAndOr token expr1 expr2 = do
   t1 <- typeOfExpr expr1
   t2 <- typeOfExpr expr2

@@ -40,7 +40,6 @@ runMain (Func _ _ (BStmt block) _) = do
   Scope _ _ _ _ _ (Just (VInt n)) <- get
   when (n /= 0) $ error "Non zero 'main' return value"
 
-
 execBlock :: Block -> Interpreter
 execBlock (Block []) = return ()
 execBlock (Block (stmt:stmts)) = do
@@ -298,7 +297,7 @@ evalExpr (EAccTup (Ident name) n) = do
   scope <- get
   let n_int = fromInteger n
       VTup tup = getValueByName name scope
-  when (n_int >= length tup) $ error ("Tuple index out of bound: '" ++ name ++ "'")
+  when (n_int >= length tup || n_int < 0) $ error ("Tuple index out of bound: '" ++ name ++ "'")
   return $ tup !! n_int
 
 evalExpr token@(ENewArr t expr) = do
@@ -318,7 +317,7 @@ evalExpr (EAccArr (Ident name) expr) = do
   VInt n <- evalExpr expr
   let n_int = fromInteger n
       VArr arr = getValueByName name scope
-  when (n_int >= Vector.length arr) $ error
+  when (n_int >= Vector.length arr || n_int < 0) $ error
     ("Array index out of bound: '" ++ name ++ "'")
   return $ arr Vector.! n_int
 

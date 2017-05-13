@@ -59,6 +59,6 @@ int main() {
   print(g(0));
 
   print("fun");
-  print(fun(13));
+  print(fun());
   return 0;
 }
