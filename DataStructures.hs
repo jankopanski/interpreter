@@ -31,7 +31,7 @@ instance Show Value where
       then "<()>"
       else "<(" ++ show (head t) ++ foldr (\e s -> (',' : show e) ++ s) "" (tail t) ++ ")>"
   show (VArr a) = show a
-  show (VMap m) = show m
+  show (VMap m) = show $ Map.assocs m
   show VVoid = error "Void type is not printable"
 
 data Func = Func FName [Name] Stmt Scope | Print | IntToStr | StrToInt | ConcatStr

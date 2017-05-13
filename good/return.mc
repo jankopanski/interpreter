@@ -44,5 +44,5 @@ int main() {
   v();
   string w = s(true, "some text");
   print(w);
-  return 20;
+  return 0;
 }
