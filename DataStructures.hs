@@ -30,8 +30,8 @@ instance Show Value where
     if null t
       then "<()>"
       else "<(" ++ show (head t) ++ foldr (\e s -> (',' : show e) ++ s) "" (tail t) ++ ")>"
-  show (VArr a) = show a
-  show (VMap m) = show $ Map.assocs m
+  show (VArr a) = "Array " ++ show (Vector.toList a)
+  show (VMap m) = "Map " ++ show (Map.assocs m)
   show VVoid = error "Void type is not printable"
 
 data Func = Func FName [Name] Stmt Scope | Print | IntToStr | StrToInt | ConcatStr
